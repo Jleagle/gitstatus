@@ -16,12 +16,12 @@ import (
 )
 
 var (
-	baseDir   = flag.String("d", "/users/"+os.Getenv("USER")+"/code", "Directory to scan")
-	doFetch   = flag.Bool("fetch", false, "Fetch repos")
-	doPull    = flag.Bool("pull", false, "Pull repos clean repos")
-	maxDepth  = flag.Int("depth", 2, "Max directory depth")
-	showAll   = flag.Bool("all", false, "Show all repos")
-	showFiles = flag.Bool("files", false, "Show modified files")
+	baseDir      = flag.String("d", "/users/"+os.Getenv("USER")+"/code", "Directory to scan")
+	doFetch      = flag.Bool("fetch", false, "Fetch repos")
+	doPull       = flag.Bool("pull", false, "Pull repos")
+	maxDepth     = flag.Int("depth", 2, "Max directory depth")
+	showAllRepos = flag.Bool("all-repos", false, "Show all repos")
+	showAllFiles = flag.Bool("all-files", false, "Show all modified files")
 
 	repos []repo
 )
@@ -126,7 +126,7 @@ func handleRepos() {
 			s = ""
 		}
 
-		if len(msg) > 0 || s != "" || *showAll {
+		if len(msg) > 0 || s != "" || *showAllRepos {
 			tab.AppendRow([]interface{}{
 				k + 1,
 				strings.TrimPrefix(repo.path, *baseDir),
@@ -153,12 +153,11 @@ func changedCount(s git.Status) (c int) {
 }
 
 func listFiles(s git.Status) string {
-	if !*showFiles {
-		return ""
-	}
 	var files []string
 	for k := range s {
-		files = append(files, k)
+		if len(files) <= 5 || *showAllFiles {
+			files = append(files, k)
+		}
 	}
 	return strings.Join(files, "\n")
 }
