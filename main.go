@@ -11,21 +11,24 @@ import (
 
 	"github.com/cheggaaa/pb/v3"
 	"github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/plumbing/format/gitignore"
 	"github.com/jedib0t/go-pretty/v6/table"
 )
 
 var (
-	baseDir    = flag.String("d", "/users/"+os.Getenv("USER")+"/code", "Directory to scan")
-	doFetch    = flag.Bool("gf", false, "Fetch repos")
-	doPull     = flag.Bool("gp", false, "Pull repos clean repos")
-	doComposer = flag.Bool("ci", false, "Composer install")
+	baseDir   = flag.String("d", "/users/"+os.Getenv("USER")+"/code", "Directory to scan")
+	doFetch   = flag.Bool("fetch", false, "Fetch repos")
+	doPull    = flag.Bool("pull", false, "Pull repos clean repos")
+	maxDepth  = flag.Int("depth", 2, "Max directory depth")
+	showAll   = flag.Bool("all", false, "Show all repos")
+	showFiles = flag.Bool("files", false, "Show modified files")
 
 	repos []repo
 )
 
 func main() {
 	flag.Parse()
-	scanRepos(*baseDir)
+	scanRepos(*baseDir, 1)
 	handleRepos()
 }
 
@@ -34,7 +37,7 @@ type repo struct {
 	repo *git.Repository
 }
 
-func scanRepos(dir string) {
+func scanRepos(dir string, depth int) {
 
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -53,7 +56,9 @@ func scanRepos(dir string) {
 				continue
 			}
 
-			scanRepos(path.Join(dir, e.Name()))
+			if depth <= *maxDepth {
+				scanRepos(path.Join(dir, e.Name()), depth+1)
+			}
 		}
 	}
 }
@@ -67,7 +72,7 @@ func handleRepos() {
 
 	tab := table.NewWriter()
 	tab.SetOutputMirror(os.Stdout)
-	tab.AppendHeader(table.Row{"#", "Repo", "Status", "Actions"})
+	tab.AppendHeader(table.Row{"#", "Repo", "Status", "Actions", "Files"})
 	tab.SetStyle(table.StyleRounded)
 
 	for k, repo := range repos {
@@ -78,6 +83,16 @@ func handleRepos() {
 		if err != nil {
 			log.Println(err)
 		}
+
+		tree.Excludes = append(
+			tree.Excludes,
+			gitignore.ParsePattern(".idea/", nil),
+			gitignore.ParsePattern(".DS_Store", nil),
+			gitignore.ParsePattern(".tiltbuild/", nil),
+		)
+
+		patterns, _ := gitignore.ReadPatterns(tree.Filesystem, nil)
+		tree.Excludes = append(tree.Excludes, patterns...)
 
 		status, err := tree.Status()
 		if err != nil {
@@ -105,33 +120,21 @@ func handleRepos() {
 			}
 		}
 
-		if *doComposer {
-
-			// Is composer?
-			//d := path.Join(dir, e.Name(), "composer.json")
-			//if _, err := os.Stat(d); err == nil {
-			//	todo, composer
-			//}
-
-			msg = append(msg, "composer install")
-		}
-
 		var changed = changedCount(status)
 		var s = fmt.Sprintf("%d modified files", changed)
 		if changed == 0 {
-			s = "Clean"
+			s = ""
 		}
 
-		//if len(msg) == 0 {
-		//	msg = append(msg, "none")
-		//}
-
-		tab.AppendRow([]interface{}{
-			k + 1,
-			strings.TrimPrefix(repo.path, *baseDir),
-			s,
-			strings.Join(msg, ", "),
-		})
+		if len(msg) > 0 || s != "" || *showAll {
+			tab.AppendRow([]interface{}{
+				k + 1,
+				strings.TrimPrefix(repo.path, *baseDir),
+				s,
+				strings.Join(msg, ", "),
+				listFiles(status),
+			})
+		}
 	}
 
 	bar.Finish()
@@ -147,4 +150,15 @@ func changedCount(s git.Status) (c int) {
 	}
 
 	return c
+}
+
+func listFiles(s git.Status) string {
+	if !*showFiles {
+		return ""
+	}
+	var files []string
+	for k := range s {
+		files = append(files, k)
+	}
+	return strings.Join(files, "\n")
 }
