@@ -20,8 +20,8 @@ var (
 	doFetch      = flag.Bool("fetch", false, "Fetch repos")
 	doPull       = flag.Bool("pull", false, "Pull repos")
 	maxDepth     = flag.Int("depth", 2, "Max directory depth")
-	showAllRepos = flag.Bool("all-repos", false, "Show all repos")
-	showAllFiles = flag.Bool("all-files", false, "Show all modified files")
+	showAllRepos = flag.Bool("all", false, "Show all repos")
+	showFiles    = flag.Bool("files", false, "Show modified files")
 
 	repos []repo
 )
@@ -153,11 +153,12 @@ func changedCount(s git.Status) (c int) {
 }
 
 func listFiles(s git.Status) string {
+	if !*showFiles {
+		return ""
+	}
 	var files []string
 	for k := range s {
-		if len(files) <= 5 || *showAllFiles {
-			files = append(files, k)
-		}
+		files = append(files, k)
 	}
 	return strings.Join(files, "\n")
 }
