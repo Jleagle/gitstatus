@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"path"
+	"sort"
 	"strings"
 	"time"
 
@@ -64,6 +65,10 @@ func scanRepos(dir string, depth int) {
 }
 
 func output() {
+
+	sort.Slice(repos, func(i, j int) bool {
+		return strings.ToLower(repos[i].path) < strings.ToLower(repos[j].path)
+	})
 
 	bar := pb.New(len(repos))
 	bar.SetRefreshRate(time.Millisecond * 200)
