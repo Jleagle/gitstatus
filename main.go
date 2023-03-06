@@ -15,21 +15,21 @@ import (
 	"github.com/jedib0t/go-pretty/v6/table"
 )
 
-var (
-	baseDir      = flag.String("d", "/users/"+os.Getenv("USER")+"/code", "Directory to scan")
-	doFetch      = flag.Bool("fetch", false, "Fetch repos")
-	doPull       = flag.Bool("pull", false, "Pull repos")
-	maxDepth     = flag.Int("depth", 2, "Max directory depth")
-	showAllRepos = flag.Bool("all", false, "Show all repos")
-	showFiles    = flag.Bool("files", false, "Show modified files")
+const maxDepth = 2
 
-	repos []repo
+var (
+	baseDir   = flag.String("d", "/users/"+os.Getenv("USER")+"/code", "Directory to scan")
+	doFetch   = flag.Bool("fetch", false, "Fetch repos")
+	doPull    = flag.Bool("pull", false, "Pull repos")
+	showFiles = flag.Bool("files", false, "Show modified files")
 )
+
+var repos []repo
 
 func main() {
 	flag.Parse()
 	scanRepos(*baseDir, 1)
-	handleRepos()
+	output()
 }
 
 type repo struct {
@@ -56,14 +56,14 @@ func scanRepos(dir string, depth int) {
 				continue
 			}
 
-			if depth <= *maxDepth {
+			if depth <= maxDepth {
 				scanRepos(path.Join(dir, e.Name()), depth+1)
 			}
 		}
 	}
 }
 
-func handleRepos() {
+func output() {
 
 	bar := pb.New(len(repos))
 	bar.SetRefreshRate(time.Millisecond * 200)
@@ -76,57 +76,59 @@ func handleRepos() {
 	tab.SetStyle(table.StyleRounded)
 
 	for k, repo := range repos {
+		func() {
 
-		bar.Increment()
+			defer bar.Increment()
 
-		tree, err := repo.repo.Worktree()
-		if err != nil {
-			log.Println(err)
-		}
+			tree, err := repo.repo.Worktree()
+			if err != nil {
+				log.Println(err)
+				return
+			}
 
-		tree.Excludes = append(
-			tree.Excludes,
-			gitignore.ParsePattern(".idea/", nil),
-			gitignore.ParsePattern(".DS_Store", nil),
-			gitignore.ParsePattern(".tiltbuild/", nil),
-		)
+			tree.Excludes = append(
+				tree.Excludes,
+				gitignore.ParsePattern(".idea/", nil),
+				gitignore.ParsePattern(".DS_Store", nil),
+				gitignore.ParsePattern(".tiltbuild/", nil),
+			)
 
-		patterns, _ := gitignore.ReadPatterns(tree.Filesystem, nil)
-		tree.Excludes = append(tree.Excludes, patterns...)
+			patterns, _ := gitignore.ReadPatterns(tree.Filesystem, nil)
+			tree.Excludes = append(tree.Excludes, patterns...)
 
-		status, err := tree.Status()
-		if err != nil {
-			log.Println(err)
-		}
+			status, err := tree.Status()
+			if err != nil {
+				log.Println(err)
+				return
+			}
 
-		var msg []string
+			var msg []string
 
-		if status.IsClean() {
+			if status.IsClean() {
 
-			if *doPull {
-				err = tree.Pull(&git.PullOptions{})
-				if err != nil && err.Error() != "already up-to-date" {
-					msg = append(msg, err.Error())
-				} else {
-					msg = append(msg, "git pull")
-				}
-			} else if *doFetch {
-				err := repo.repo.Fetch(&git.FetchOptions{})
-				if err != nil && err.Error() != "already up-to-date" {
-					msg = append(msg, err.Error())
-				} else {
-					msg = append(msg, "git fetch")
+				if *doPull {
+					err = tree.Pull(&git.PullOptions{})
+					if err != nil && err.Error() != "already up-to-date" {
+						msg = append(msg, err.Error())
+					} else {
+						msg = append(msg, "git pull")
+					}
+				} else if *doFetch {
+					err := repo.repo.Fetch(&git.FetchOptions{})
+					if err != nil && err.Error() != "already up-to-date" {
+						msg = append(msg, err.Error())
+					} else {
+						msg = append(msg, "git fetch")
+					}
 				}
 			}
-		}
 
-		var changed = changedCount(status)
-		var s = fmt.Sprintf("%d modified files", changed)
-		if changed == 0 {
-			s = ""
-		}
+			var changed = changedCount(status)
+			var s = fmt.Sprintf("%d modified files", changed)
+			if changed == 0 {
+				s = ""
+			}
 
-		if len(msg) > 0 || s != "" || *showAllRepos {
 			tab.AppendRow([]interface{}{
 				k + 1,
 				strings.TrimPrefix(repo.path, *baseDir),
@@ -134,7 +136,7 @@ func handleRepos() {
 				strings.Join(msg, ", "),
 				listFiles(status),
 			})
-		}
+		}()
 	}
 
 	bar.Finish()
