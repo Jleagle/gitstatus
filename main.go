@@ -2,11 +2,11 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"log"
 	"os"
 	"path"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -23,9 +23,16 @@ var (
 	doFetch   = flag.Bool("fetch", false, "Fetch repos")
 	doPull    = flag.Bool("pull", false, "Pull repos")
 	showFiles = flag.Bool("files", false, "Show modified files")
-)
+	filter    = flag.String("filter", "", "Filter repos")
 
-var repos []repo
+	gitIgnore = []string{
+		".DS_Store",
+		".idea/",
+		".tiltbuild/",
+	}
+
+	repos []repo
+)
 
 func main() {
 	flag.Parse()
@@ -53,8 +60,10 @@ func scanRepos(dir string, depth int) {
 
 			r, err := git.PlainOpen(d)
 			if err == nil {
-				repos = append(repos, repo{path: d, repo: r})
-				continue
+				if *filter == "" || strings.Contains(d, *filter) {
+					repos = append(repos, repo{path: d, repo: r})
+					continue
+				}
 			}
 
 			if depth <= maxDepth {
@@ -77,7 +86,7 @@ func output() {
 
 	tab := table.NewWriter()
 	tab.SetOutputMirror(os.Stdout)
-	tab.AppendHeader(table.Row{"#", "Repo", "Status", "Actions", "Files"})
+	tab.AppendHeader(table.Row{"#", "Repo", "Actions", "# Modified Files", "Files"})
 	tab.SetStyle(table.StyleRounded)
 
 	for k, repo := range repos {
@@ -91,14 +100,16 @@ func output() {
 				return
 			}
 
-			tree.Excludes = append(
-				tree.Excludes,
-				gitignore.ParsePattern(".idea/", nil),
-				gitignore.ParsePattern(".DS_Store", nil),
-				gitignore.ParsePattern(".tiltbuild/", nil),
-			)
+			for _, v := range gitIgnore {
+				tree.Excludes = append(tree.Excludes, gitignore.ParsePattern(v, nil))
+			}
 
-			patterns, _ := gitignore.ReadPatterns(tree.Filesystem, nil)
+			patterns, err := gitignore.ReadPatterns(tree.Filesystem, nil)
+			if err != nil {
+				log.Println(err)
+				return
+			}
+
 			tree.Excludes = append(tree.Excludes, patterns...)
 
 			status, err := tree.Status()
@@ -128,17 +139,11 @@ func output() {
 				}
 			}
 
-			var changed = changedCount(status)
-			var s = fmt.Sprintf("%d modified files", changed)
-			if changed == 0 {
-				s = ""
-			}
-
 			tab.AppendRow([]interface{}{
 				k + 1,
 				strings.TrimPrefix(repo.path, *baseDir),
-				s,
 				strings.Join(msg, ", "),
+				strconv.Itoa(changedCount(status)),
 				listFiles(status),
 			})
 		}()
@@ -149,23 +154,20 @@ func output() {
 }
 
 func changedCount(s git.Status) (c int) {
-
 	for _, status := range s {
 		if status.Worktree != git.Unmodified || status.Staging != git.Unmodified {
 			c++
 		}
 	}
-
 	return c
 }
 
 func listFiles(s git.Status) string {
-	if !*showFiles {
-		return ""
-	}
 	var files []string
 	for k := range s {
-		files = append(files, k)
+		if len(files) <= 5 || *showFiles {
+			files = append(files, k)
+		}
 	}
 	return strings.Join(files, "\n")
 }
