@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"path"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -29,6 +30,17 @@ var (
 		".DS_Store",
 		".idea/",
 		".tiltbuild/",
+	}
+
+	statusNames = map[git.StatusCode]string{
+		' ': "Unmodified",
+		'?': "Untracked",
+		'M': "Modified",
+		'A': "Added",
+		'D': "Deleted",
+		'R': "Renamed",
+		'C': "Copied",
+		'U': "UpdatedButUnmerged",
 	}
 
 	repos []repo
@@ -164,9 +176,14 @@ func changedCount(s git.Status) (c int) {
 
 func listFiles(s git.Status) string {
 	var files []string
-	for k := range s {
-		if len(files) <= 5 || *showFiles {
-			files = append(files, k)
+	for k, v := range s {
+		if len(files) < 3 || *showFiles {
+
+			if !*showFiles {
+				k = filepath.Base(k)
+			}
+
+			files = append(files, strings.ToUpper(statusNames[v.Worktree])+": "+k)
 		}
 	}
 	return strings.Join(files, "\n")
