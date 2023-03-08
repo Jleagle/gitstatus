@@ -98,6 +98,7 @@ func output() {
 	bar := pb.New(len(repos))
 	bar.SetRefreshRate(time.Millisecond * 200)
 	bar.SetWriter(os.Stdout)
+	bar.SetWidth(100)
 	bar.Start()
 
 	tab := table.NewWriter()
