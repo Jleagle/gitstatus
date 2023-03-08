@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/cheggaaa/pb/v3"
@@ -17,7 +18,10 @@ import (
 	"github.com/jedib0t/go-pretty/v6/table"
 )
 
-const maxDepth = 2
+const (
+	maxDepth      = 2
+	maxConcurrent = 10
+)
 
 var (
 	baseDir   = flag.String("d", "/users/"+os.Getenv("USER")+"/code", "Directory to scan")
@@ -101,10 +105,20 @@ func output() {
 	tab.AppendHeader(table.Row{"#", "Repo", "Actions", "# Modified Files", "Files"})
 	tab.SetStyle(table.StyleRounded)
 
-	for k, repo := range repos {
-		func() {
+	guard := make(chan struct{}, maxConcurrent)
+	wg := sync.WaitGroup{}
 
-			defer bar.Increment()
+	for k, v := range repos {
+
+		guard <- struct{}{}
+		wg.Add(1)
+		go func(repo repo) {
+
+			defer func() {
+				bar.Increment()
+				wg.Done()
+				<-guard
+			}()
 
 			tree, err := repo.repo.Worktree()
 			if err != nil {
@@ -158,9 +172,10 @@ func output() {
 				strconv.Itoa(changedCount(status)),
 				listFiles(status),
 			})
-		}()
+		}(v)
 	}
 
+	wg.Wait()
 	bar.Finish()
 	tab.Render()
 }
