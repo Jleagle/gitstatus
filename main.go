@@ -28,7 +28,7 @@ var (
 	doFetch   = flag.Bool("fetch", false, "Fetch repos")
 	doPull    = flag.Bool("pull", false, "Pull repos")
 	showFiles = flag.Bool("files", false, "Show modified files")
-	filter    = flag.String("filter", "", "Filter repos")
+	filter    = flag.String("filter", "", "Filter repos, comma delimited")
 
 	gitIgnore = []string{
 		".DS_Store",
@@ -76,7 +76,19 @@ func scanRepos(dir string, depth int) {
 
 			r, err := git.PlainOpen(d)
 			if err == nil {
-				if *filter == "" || strings.Contains(d, *filter) {
+
+				allow := *filter == ""
+				if !allow {
+					pieces := strings.Split(*filter, ",")
+					for _, piece := range pieces {
+						if strings.Contains(d, strings.TrimSpace(piece)) {
+							allow = true
+							break
+						}
+					}
+				}
+
+				if allow {
 					repos = append(repos, repo{path: d, repo: r})
 					continue
 				}
