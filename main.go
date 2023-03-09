@@ -24,7 +24,6 @@ const (
 )
 
 var (
-	//doFetch   = flag.Bool("fetch", false, "Fetch repos")
 	baseDir   = flag.String("d", "/users/"+os.Getenv("USER")+"/code", "Directory to scan")
 	doPull    = flag.Bool("pull", false, "Pull repos")
 	showFiles = flag.Bool("files", false, "Show all modified files")
@@ -88,9 +87,9 @@ func scanRepos(repos map[string]*git.Repository, dir string, depth int) {
 }
 
 type row struct {
-	path    string
-	actions []string
-	status  git.Status
+	path   string
+	action string
+	status git.Status
 }
 
 func handleRepos(repos map[string]*git.Repository) {
@@ -126,6 +125,7 @@ func handleRepos(repos map[string]*git.Repository) {
 				return
 			}
 
+			// Add ignored files
 			for _, v := range gitIgnore {
 				tree.Excludes = append(tree.Excludes, gitignore.ParsePattern(v, nil))
 			}
@@ -138,35 +138,25 @@ func handleRepos(repos map[string]*git.Repository) {
 
 			tree.Excludes = append(tree.Excludes, patterns...)
 
+			//
 			status, err := tree.Status()
 			if err != nil {
 				log.Println(err)
 				return
 			}
 
-			var actions []string
-
-			if status.IsClean() {
-
-				if *doPull {
-					err = tree.Pull(&git.PullOptions{})
-					if err != nil && err.Error() != "already up-to-date" {
-						actions = append(actions, err.Error())
-					} else {
-						actions = append(actions, "git pull")
-					}
+			// Pull
+			var action string
+			if status.IsClean() && *doPull {
+				err = tree.Pull(&git.PullOptions{})
+				if err != nil && err.Error() != "already up-to-date" {
+					action = err.Error()
+				} else {
+					action = "pulled"
 				}
-				//else if *doFetch {
-				//	err := repo.Fetch(&git.FetchOptions{})
-				//	if err != nil && err.Error() != "already up-to-date" {
-				//		actions = append(actions, err.Error())
-				//	} else {
-				//		actions = append(actions, "git fetch")
-				//	}
-				//}
 			}
 
-			rows = append(rows, row{path: path, actions: actions, status: status})
+			rows = append(rows, row{path: path, action: action, status: status})
 
 		}(i, k, v)
 	}
@@ -187,7 +177,7 @@ func handleRepos(repos map[string]*git.Repository) {
 		tab.AppendRow(table.Row{
 			strconv.Itoa(k + 1),
 			strings.TrimPrefix(row.path, *baseDir),
-			strings.Join(row.actions, ", "),
+			row.action,
 			strconv.Itoa(changedCount(row.status)),
 			strings.Join(listFiles(row.status), "\n"),
 		})
