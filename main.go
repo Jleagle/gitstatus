@@ -24,48 +24,29 @@ const (
 )
 
 var (
+	//doFetch   = flag.Bool("fetch", false, "Fetch repos")
 	baseDir   = flag.String("d", "/users/"+os.Getenv("USER")+"/code", "Directory to scan")
-	doFetch   = flag.Bool("fetch", false, "Fetch repos")
 	doPull    = flag.Bool("pull", false, "Pull repos")
-	showFiles = flag.Bool("files", false, "Show modified files")
+	showFiles = flag.Bool("files", false, "Show all modified files")
 	filter    = flag.String("filter", "", "Filter repos, comma delimited")
 
-	gitIgnore = []string{
-		".DS_Store",
-		".idea/",
-		".tiltbuild/",
-	}
-
-	statusNames = map[git.StatusCode]string{
-		' ': "Unmodified",
-		'?': "Untracked",
-		'M': "Modified",
-		'A': "Added",
-		'D': "Deleted",
-		'R': "Renamed",
-		'C': "Copied",
-		'U': "UpdatedButUnmerged",
-	}
-
-	repos []repo
+	gitIgnore = []string{".DS_Store", ".idea/", ".tiltbuild/"}
 )
 
 func main() {
 	flag.Parse()
-	scanRepos(*baseDir, 1)
-	output()
+
+	repos := map[string]*git.Repository{}
+	scanRepos(repos, *baseDir, 1)
+	handleRepos(repos)
 }
 
-type repo struct {
-	path string
-	repo *git.Repository
-}
-
-func scanRepos(dir string, depth int) {
+func scanRepos(repos map[string]*git.Repository, dir string, depth int) {
 
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		log.Fatal(err)
+		log.Println(err)
+		return
 	}
 
 	for _, e := range entries {
@@ -74,38 +55,45 @@ func scanRepos(dir string, depth int) {
 
 			d := path.Join(dir, e.Name())
 
+			// Load repo
 			r, err := git.PlainOpen(d)
-			if err == nil {
-
-				allow := *filter == ""
-				if !allow {
-					pieces := strings.Split(*filter, ",")
-					for _, piece := range pieces {
-						if strings.Contains(d, strings.TrimSpace(piece)) {
-							allow = true
-							break
-						}
-					}
+			if err != nil {
+				if err != git.ErrRepositoryNotExists {
+					log.Println(err)
 				}
+				if depth <= maxDepth {
+					scanRepos(repos, path.Join(dir, e.Name()), depth+1)
+				}
+				continue
+			}
 
-				if allow {
-					repos = append(repos, repo{path: d, repo: r})
-					continue
+			// Filter
+			include := *filter == ""
+			if !include {
+				pieces := strings.Split(*filter, ",")
+				for _, piece := range pieces {
+					if strings.Contains(strings.ToLower(d), strings.TrimSpace(strings.ToLower(piece))) {
+						include = true
+						break
+					}
 				}
 			}
 
-			if depth <= maxDepth {
-				scanRepos(path.Join(dir, e.Name()), depth+1)
+			// Add to map
+			if include {
+				repos[d] = r
 			}
 		}
 	}
 }
 
-func output() {
+type row struct {
+	path    string
+	actions []string
+	status  git.Status
+}
 
-	sort.Slice(repos, func(i, j int) bool {
-		return strings.ToLower(repos[i].path) < strings.ToLower(repos[j].path)
-	})
+func handleRepos(repos map[string]*git.Repository) {
 
 	bar := pb.New(len(repos))
 	bar.SetRefreshRate(time.Millisecond * 200)
@@ -113,19 +101,18 @@ func output() {
 	bar.SetWidth(100)
 	bar.Start()
 
-	tab := table.NewWriter()
-	tab.SetOutputMirror(os.Stdout)
-	tab.AppendHeader(table.Row{"#", "Repo", "Actions", "# Modified Files", "Files"})
-	tab.SetStyle(table.StyleRounded)
-
-	guard := make(chan struct{}, maxConcurrent)
-	wg := sync.WaitGroup{}
+	var guard = make(chan struct{}, maxConcurrent)
+	var wg = sync.WaitGroup{}
+	var i = 0
+	var rows []row
 
 	for k, v := range repos {
 
-		guard <- struct{}{}
+		i++
 		wg.Add(1)
-		go func(repo repo) {
+		guard <- struct{}{}
+
+		go func(i int, path string, repo *git.Repository) {
 
 			defer func() {
 				bar.Increment()
@@ -133,7 +120,7 @@ func output() {
 				<-guard
 			}()
 
-			tree, err := repo.repo.Worktree()
+			tree, err := repo.Worktree()
 			if err != nil {
 				log.Println(err)
 				return
@@ -157,39 +144,55 @@ func output() {
 				return
 			}
 
-			var msg []string
+			var actions []string
 
 			if status.IsClean() {
 
 				if *doPull {
 					err = tree.Pull(&git.PullOptions{})
 					if err != nil && err.Error() != "already up-to-date" {
-						msg = append(msg, err.Error())
+						actions = append(actions, err.Error())
 					} else {
-						msg = append(msg, "git pull")
-					}
-				} else if *doFetch {
-					err := repo.repo.Fetch(&git.FetchOptions{})
-					if err != nil && err.Error() != "already up-to-date" {
-						msg = append(msg, err.Error())
-					} else {
-						msg = append(msg, "git fetch")
+						actions = append(actions, "git pull")
 					}
 				}
+				//else if *doFetch {
+				//	err := repo.Fetch(&git.FetchOptions{})
+				//	if err != nil && err.Error() != "already up-to-date" {
+				//		actions = append(actions, err.Error())
+				//	} else {
+				//		actions = append(actions, "git fetch")
+				//	}
+				//}
 			}
 
-			tab.AppendRow([]interface{}{
-				k + 1,
-				strings.TrimPrefix(repo.path, *baseDir),
-				strings.Join(msg, ", "),
-				strconv.Itoa(changedCount(status)),
-				listFiles(status),
-			})
-		}(v)
+			rows = append(rows, row{path: path, actions: actions, status: status})
+
+		}(i, k, v)
 	}
 
 	wg.Wait()
 	bar.Finish()
+
+	sort.Slice(rows, func(i, j int) bool {
+		return strings.ToLower(rows[i].path) < strings.ToLower(rows[j].path)
+	})
+
+	tab := table.NewWriter()
+	tab.SetOutputMirror(os.Stdout)
+	tab.AppendHeader(table.Row{"#", "Repo", "Actions", "# Modified Files", "Files"})
+	tab.SetStyle(table.StyleRounded)
+
+	for k, row := range rows {
+		tab.AppendRow(table.Row{
+			strconv.Itoa(k + 1),
+			strings.TrimPrefix(row.path, *baseDir),
+			strings.Join(row.actions, ", "),
+			strconv.Itoa(changedCount(row.status)),
+			strings.Join(listFiles(row.status), "\n"),
+		})
+	}
+
 	tab.Render()
 }
 
@@ -202,7 +205,18 @@ func changedCount(s git.Status) (c int) {
 	return c
 }
 
-func listFiles(s git.Status) string {
+var statusNames = map[git.StatusCode]string{
+	' ': "Unmodified",
+	'?': "Untracked",
+	'M': "Modified",
+	'A': "Added",
+	'D': "Deleted",
+	'R': "Renamed",
+	'C': "Copied",
+	'U': "UpdatedButUnmerged",
+}
+
+func listFiles(s git.Status) []string {
 	var files []string
 	for k, v := range s {
 		if len(files) < 3 || *showFiles {
@@ -214,5 +228,5 @@ func listFiles(s git.Status) string {
 			files = append(files, strings.ToUpper(statusNames[v.Worktree])+": "+k)
 		}
 	}
-	return strings.Join(files, "\n")
+	return files
 }
