@@ -5,7 +5,6 @@ import (
 	"log"
 	"os"
 	"path"
-	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -13,6 +12,7 @@ import (
 	"time"
 
 	"github.com/cheggaaa/pb/v3"
+	"github.com/fatih/color"
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing/format/gitignore"
 	"github.com/jedib0t/go-pretty/v6/table"
@@ -33,6 +33,7 @@ var (
 )
 
 func main() {
+
 	flag.Parse()
 
 	repos := map[string]*git.Repository{}
@@ -88,6 +89,7 @@ func scanRepos(repos map[string]*git.Repository, dir string, depth int) {
 
 type row struct {
 	path   string
+	branch string
 	action string
 	status git.Status
 }
@@ -125,6 +127,12 @@ func handleRepos(repos map[string]*git.Repository) {
 				return
 			}
 
+			head, err := repo.Head()
+			if err != nil {
+				log.Println(err)
+				return
+			}
+
 			// Add ignored files
 			for _, v := range gitIgnore {
 				tree.Excludes = append(tree.Excludes, gitignore.ParsePattern(v, nil))
@@ -150,13 +158,23 @@ func handleRepos(repos map[string]*git.Repository) {
 			if status.IsClean() && *doPull {
 				err = tree.Pull(&git.PullOptions{})
 				if err != nil && err.Error() != "already up-to-date" {
-					action = err.Error()
+					action = color.GreenString("ERROR: " + err.Error())
 				} else {
 					action = "pulled"
 				}
 			}
 
-			rows = append(rows, row{path: path, action: action, status: status})
+			branch := strings.TrimPrefix(string(head.Name()), "refs/heads/")
+			if branch != "master" && branch != "main" {
+				branch = color.GreenString(branch)
+			}
+
+			rows = append(rows, row{
+				path:   path,
+				branch: branch,
+				action: action,
+				status: status,
+			})
 
 		}(i, k, v)
 	}
@@ -170,29 +188,20 @@ func handleRepos(repos map[string]*git.Repository) {
 
 	tab := table.NewWriter()
 	tab.SetOutputMirror(os.Stdout)
-	tab.AppendHeader(table.Row{"#", "Repo", "Actions", "# Modified Files", "Files"})
+	tab.AppendHeader(table.Row{"#", "Repo", "Branch", "Actions", "Modified Files"})
 	tab.SetStyle(table.StyleRounded)
 
 	for k, row := range rows {
 		tab.AppendRow(table.Row{
 			strconv.Itoa(k + 1),
 			strings.TrimPrefix(row.path, *baseDir),
+			row.branch,
 			row.action,
-			strconv.Itoa(changedCount(row.status)),
-			strings.Join(listFiles(row.status), "\n"),
+			listFiles(row.status),
 		})
 	}
 
 	tab.Render()
-}
-
-func changedCount(s git.Status) (c int) {
-	for _, status := range s {
-		if status.Worktree != git.Unmodified || status.Staging != git.Unmodified {
-			c++
-		}
-	}
-	return c
 }
 
 var statusNames = map[git.StatusCode]string{
@@ -206,17 +215,30 @@ var statusNames = map[git.StatusCode]string{
 	'U': "UpdatedButUnmerged",
 }
 
-func listFiles(s git.Status) []string {
-	var files []string
-	for k, v := range s {
-		if len(files) < 3 || *showFiles {
+func listFiles(s git.Status) string {
 
-			if !*showFiles {
-				k = filepath.Base(k)
-			}
+	if *showFiles {
 
+		var files []string
+		for k, v := range s {
 			files = append(files, strings.ToUpper(statusNames[v.Worktree])+": "+k)
 		}
+		return strings.Join(files, "\n")
+
+	} else {
+
+		var count int
+		for _, status := range s {
+			if status.Worktree != git.Unmodified || status.Staging != git.Unmodified {
+				count++
+			}
+		}
+
+		var ret = "-"
+		if count > 0 {
+			ret = color.GreenString(strconv.Itoa(count))
+		}
+
+		return ret
 	}
-	return files
 }

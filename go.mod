@@ -4,6 +4,7 @@ go 1.20
 
 require (
 	github.com/cheggaaa/pb/v3 v3.1.2
+	github.com/fatih/color v1.14.1
 	github.com/go-git/go-git/v5 v5.6.0
 	github.com/jedib0t/go-pretty/v6 v6.4.6
 )
@@ -15,7 +16,6 @@ require (
 	github.com/acomagu/bufpipe v1.0.4 // indirect
 	github.com/cloudflare/circl v1.3.2 // indirect
 	github.com/emirpasic/gods v1.18.1 // indirect
-	github.com/fatih/color v1.14.1 // indirect
 	github.com/go-git/gcfg v1.5.0 // indirect
 	github.com/go-git/go-billy/v5 v5.4.1 // indirect
 	github.com/imdario/mergo v0.3.13 // indirect
