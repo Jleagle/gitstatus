@@ -188,7 +188,7 @@ func handleRepos(repos map[string]*git.Repository) {
 
 	tab := table.NewWriter()
 	tab.SetOutputMirror(os.Stdout)
-	tab.AppendHeader(table.Row{"#", "Repo", "Branch", "Actions", "Modified Files"})
+	tab.AppendHeader(table.Row{"#", "Repo", "Branch", "Actions", "Modified"})
 	tab.SetStyle(table.StyleRounded)
 
 	for k, row := range rows {
