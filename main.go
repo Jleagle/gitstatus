@@ -157,10 +157,14 @@ func handleRepos(repos map[string]*git.Repository) {
 			var action string
 			if status.IsClean() && *doPull {
 				err = tree.Pull(&git.PullOptions{})
-				if err != nil && err.Error() != "already up-to-date" {
-					action = color.GreenString("ERROR: " + err.Error())
+				if err != nil {
+					if err.Error() == "already up-to-date" {
+						action = "pulled, no changes"
+					} else {
+						action = color.RedString("ERROR: " + err.Error())
+					}
 				} else {
-					action = "pulled"
+					action = color.GreenString("pulled, updated")
 				}
 			}
 
@@ -234,7 +238,7 @@ func listFiles(s git.Status) string {
 			}
 		}
 
-		var ret = "-"
+		var ret = ""
 		if count > 0 {
 			ret = color.GreenString(strconv.Itoa(count))
 		}
