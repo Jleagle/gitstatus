@@ -159,7 +159,7 @@ func handleRepos(repos map[string]*git.Repository) {
 				err = tree.Pull(&git.PullOptions{})
 				if err != nil {
 					if err.Error() == "already up-to-date" {
-						action = "pulled, no changes"
+						action = "pulled"
 					} else {
 						action = color.RedString("ERROR: " + err.Error())
 					}
