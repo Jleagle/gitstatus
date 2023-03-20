@@ -96,6 +96,11 @@ type row struct {
 
 func handleRepos(repos map[string]*git.Repository) {
 
+	if len(repos) == 0 {
+		fmt.Println("No repos match your directory & filter")
+		return
+	}
+
 	bar := pb.New(len(repos))
 	bar.SetRefreshRate(time.Millisecond * 200)
 	bar.SetWriter(os.Stdout)
