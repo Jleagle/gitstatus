@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log"
 	"os"
 	"path"
@@ -25,9 +26,10 @@ const (
 
 var (
 	baseDir   = flag.String("d", "/users/"+os.Getenv("USER")+"/code", "Directory to scan")
+	filter    = flag.String("filter", "", "Filter repos, comma delimited")
 	doPull    = flag.Bool("pull", false, "Pull repos")
 	showFiles = flag.Bool("files", false, "Show all modified files")
-	filter    = flag.String("filter", "", "Filter repos, comma delimited")
+	showAll   = flag.Bool("all", false, "Show all repos, even if no changes")
 
 	gitIgnore = []string{".DS_Store", ".idea/", ".tiltbuild/"}
 )
@@ -197,20 +199,34 @@ func handleRepos(repos map[string]*git.Repository) {
 
 	tab := table.NewWriter()
 	tab.SetOutputMirror(os.Stdout)
-	tab.AppendHeader(table.Row{"#", "Repo", "Branch", "Actions", "Modified"})
+	tab.AppendHeader(table.Row{"Repo", "Branch", "Actions", "Modified"})
 	tab.SetStyle(table.StyleRounded)
+	//tab.SortBy([]table.SortBy{{Name: "Repo", Mode: table.Asc}}) // Is this case insensitive?
 
-	for k, row := range rows {
-		tab.AppendRow(table.Row{
-			strconv.Itoa(k + 1),
-			strings.TrimPrefix(row.path, *baseDir),
-			row.branch,
-			row.action,
-			listFiles(row.status),
-		})
+	hidden := 0
+
+	for _, row := range rows {
+
+		if *showAll || (row.branch != "master" && row.branch != "main") || (row.action != "pulled" && row.action != "") || len(row.status) > 0 {
+
+			tab.AppendRow(table.Row{
+				strings.TrimPrefix(row.path, *baseDir),
+				row.branch,
+				row.action,
+				listFiles(row.status),
+			})
+		} else {
+			hidden++
+		}
 	}
 
-	tab.Render()
+	if tab.Length() > 0 {
+		tab.Render()
+	}
+
+	if hidden > 0 {
+		fmt.Printf("%d repos with nothing to report\n\n", hidden)
+	}
 }
 
 var statusNames = map[git.StatusCode]string{
