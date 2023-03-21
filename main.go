@@ -22,6 +22,7 @@ import (
 const (
 	maxDepth      = 2
 	maxConcurrent = 10
+	maxRetries    = 1
 )
 
 var (
@@ -163,6 +164,7 @@ func handleRepos(repos map[string]*git.Repository) {
 			// Pull
 			var action string
 			if status.IsClean() && *doPull {
+				row = pull(tree, row, 1)
 				err = tree.Pull(&git.PullOptions{})
 				if err != nil {
 					if err.Error() == "already up-to-date" {
@@ -266,4 +268,26 @@ func listFiles(s git.Status) string {
 
 		return ret
 	}
+}
+
+func pull(tree *git.Worktree, row row, attempt int) row {
+
+	err := tree.Pull(&git.PullOptions{})
+
+	// retry
+	if err != nil && err.Error() != "already up-to-date" && attempt <= maxRetries {
+		return pull(tree, row, attempt+1)
+	}
+
+	if err != nil {
+		if err.Error() == "already up-to-date" {
+			row.pulled = true
+		} else {
+			row.pulledError = err
+		}
+	} else {
+		row.pulledChanges = true
+	}
+
+	return row
 }
