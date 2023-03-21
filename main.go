@@ -91,10 +91,13 @@ func scanRepos(repos map[string]*git.Repository, dir string, depth int) {
 }
 
 type row struct {
-	path   string
-	branch string
-	action string
-	status git.Status
+	path            string
+	branch          string
+	branchHighlight bool
+	pulled          bool
+	pulledChanges   bool
+	pulledError     error
+	status          git.Status
 }
 
 func handleRepos(repos map[string]*git.Repository) {
@@ -161,33 +164,34 @@ func handleRepos(repos map[string]*git.Repository) {
 				return
 			}
 
+			//
+			row := row{
+				path:   path,
+				branch: strings.TrimPrefix(string(head.Name()), "refs/heads/"),
+				status: status,
+			}
+
+			if row.branch != "master" && row.branch != "main" {
+				row.branch = color.RedString(row.branch)
+				row.branchHighlight = true
+			}
+
 			// Pull
-			var action string
 			if status.IsClean() && *doPull {
 				row = pull(tree, row, 1)
 				err = tree.Pull(&git.PullOptions{})
 				if err != nil {
 					if err.Error() == "already up-to-date" {
-						action = "pulled"
+						row.pulled = true
 					} else {
-						action = color.RedString("ERROR: " + err.Error())
+						row.pulledError = err
 					}
 				} else {
-					action = color.GreenString("pulled, updated")
+					row.pulledChanges = true
 				}
 			}
 
-			branch := strings.TrimPrefix(string(head.Name()), "refs/heads/")
-			if branch != "master" && branch != "main" {
-				branch = color.GreenString(branch)
-			}
-
-			rows = append(rows, row{
-				path:   path,
-				branch: branch,
-				action: action,
-				status: status,
-			})
+			rows = append(rows, row)
 
 		}(i, k, v)
 	}
@@ -209,12 +213,21 @@ func handleRepos(repos map[string]*git.Repository) {
 
 	for _, row := range rows {
 
-		if *showAll || (row.branch != "master" && row.branch != "main") || (row.action != "pulled" && row.action != "") || len(row.status) > 0 {
+		if *showAll || row.branchHighlight || row.pulledChanges || len(row.status) > 0 || row.pulledError != nil {
+
+			var action = ""
+			if row.pulledError != nil {
+				action = color.RedString("ERROR: " + row.pulledError.Error())
+			} else if row.pulledChanges {
+				action = color.GreenString("Updated")
+			} else if row.pulled {
+				action = "Pulled"
+			}
 
 			tab.AppendRow(table.Row{
 				strings.TrimPrefix(row.path, *baseDir),
 				row.branch,
-				row.action,
+				action,
 				listFiles(row.status),
 			})
 		} else {
@@ -261,12 +274,11 @@ func listFiles(s git.Status) string {
 			}
 		}
 
-		var ret = ""
 		if count > 0 {
-			ret = color.GreenString(strconv.Itoa(count))
+			return color.RedString(strconv.Itoa(count))
+		} else {
+			return strconv.Itoa(count)
 		}
-
-		return ret
 	}
 }
 
