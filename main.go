@@ -285,16 +285,13 @@ func listFiles(s git.Status) string {
 func pull(tree *git.Worktree, row row, attempt int) row {
 
 	err := tree.Pull(&git.PullOptions{})
-
-	// retry
-	if err != nil && err.Error() != "already up-to-date" && attempt <= maxRetries {
-		return pull(tree, row, attempt+1)
-	}
-
 	if err != nil {
 		if err.Error() == "already up-to-date" {
 			row.pulled = true
 		} else {
+			if attempt <= maxRetries {
+				return pull(tree, row, attempt+1)
+			}
 			row.pulledError = err
 		}
 	} else {
