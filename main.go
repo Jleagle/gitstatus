@@ -179,16 +179,6 @@ func handleRepos(repos map[string]*git.Repository) {
 			// Pull
 			if status.IsClean() && *doPull {
 				row = pull(tree, row, 1)
-				err = tree.Pull(&git.PullOptions{})
-				if err != nil {
-					if err.Error() == "already up-to-date" {
-						row.pulled = true
-					} else {
-						row.pulledError = err
-					}
-				} else {
-					row.pulledChanges = true
-				}
 			}
 
 			rows = append(rows, row)
