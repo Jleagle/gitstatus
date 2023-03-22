@@ -39,8 +39,18 @@ func main() {
 
 	flag.Parse()
 
+	// Get base dir
+	d := *flagBaseDir
+	if d == "" {
+		d = os.Getenv("CODE_DIR")
+	}
+	if d == "" {
+		d = "/users/" + os.Getenv("USER") + "/code"
+	}
+
+	//
 	repos := map[string]*git.Repository{}
-	scanRepos(repos, *baseDir, 1)
+	scanRepos(repos, d, 1)
 	handleRepos(repos)
 }
 
