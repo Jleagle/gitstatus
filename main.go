@@ -26,11 +26,11 @@ const (
 )
 
 var (
-	baseDir   = flag.String("d", "/users/"+os.Getenv("USER")+"/code", "Directory to scan")
-	filter    = flag.String("filter", "", "Filter repos, comma delimited")
-	doPull    = flag.Bool("pull", false, "Pull repos")
-	showFiles = flag.Bool("files", false, "Show all modified files")
-	showAll   = flag.Bool("all", false, "Show all repos, even if no changes")
+	flagBaseDir   = flag.String("d", "", "Directory to scan")
+	flagFilter    = flag.String("filter", "", "Filter repos, comma delimited")
+	flagPull      = flag.Bool("pull", false, "Pull repos")
+	flagShowFiles = flag.Bool("files", false, "Show all modified files")
+	flagShowAll   = flag.Bool("all", false, "Show all repos, even if no changes")
 
 	gitIgnore = []string{".DS_Store", ".idea/", ".tiltbuild/"}
 )
@@ -71,9 +71,9 @@ func scanRepos(repos map[string]*git.Repository, dir string, depth int) {
 			}
 
 			// Filter
-			include := *filter == ""
+			include := *flagFilter == ""
 			if !include {
-				pieces := strings.Split(*filter, ",")
+				pieces := strings.Split(*flagFilter, ",")
 				for _, piece := range pieces {
 					if strings.Contains(strings.ToLower(d), strings.TrimSpace(strings.ToLower(piece))) {
 						include = true
@@ -91,13 +91,13 @@ func scanRepos(repos map[string]*git.Repository, dir string, depth int) {
 }
 
 type row struct {
-	path            string
-	branch          string
-	branchHighlight bool
-	pulled          bool
-	pulledChanges   bool
-	pulledError     error
-	status          git.Status
+	path          string
+	branch        string
+	branchNonMain bool
+	pulled        bool
+	pulledChanges bool
+	pulledError   error
+	status        git.Status
 }
 
 func handleRepos(repos map[string]*git.Repository) {
@@ -173,11 +173,11 @@ func handleRepos(repos map[string]*git.Repository) {
 
 			if row.branch != "master" && row.branch != "main" {
 				row.branch = color.RedString(row.branch)
-				row.branchHighlight = true
+				row.branchNonMain = true
 			}
 
 			// Pull
-			if status.IsClean() && *doPull {
+			if status.IsClean() && *flagPull {
 				row = pull(tree, row, 1)
 			}
 
@@ -203,7 +203,7 @@ func handleRepos(repos map[string]*git.Repository) {
 
 	for _, row := range rows {
 
-		if *showAll || row.branchHighlight || row.pulledChanges || len(row.status) > 0 || row.pulledError != nil {
+		if *flagShowAll || row.branchNonMain || row.pulledChanges || len(row.status) > 0 || row.pulledError != nil {
 
 			var action = ""
 			if row.pulledError != nil {
@@ -215,7 +215,7 @@ func handleRepos(repos map[string]*git.Repository) {
 			}
 
 			tab.AppendRow(table.Row{
-				strings.TrimPrefix(row.path, *baseDir),
+				strings.TrimPrefix(row.path, *flagBaseDir),
 				row.branch,
 				action,
 				listFiles(row.status),
@@ -247,7 +247,7 @@ var statusNames = map[git.StatusCode]string{
 
 func listFiles(s git.Status) string {
 
-	if *showFiles {
+	if *flagShowFiles {
 
 		var files []string
 		for k, v := range s {
