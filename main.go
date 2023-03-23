@@ -31,75 +31,15 @@ var (
 	flagPull      = flag.Bool("pull", false, "Pull repos")
 	flagShowFiles = flag.Bool("files", false, "Show all modified files")
 	flagShowAll   = flag.Bool("all", false, "Show all repos, even if no changes")
-
-	gitIgnore = []string{".DS_Store", ".idea/", ".tiltbuild/"}
 )
 
-func main() {
-
-	flag.Parse()
-
-	// Base dir fallbacks
-	if *flagBaseDir == "" {
-		*flagBaseDir = os.Getenv("CODE_DIR")
-	}
-	if *flagBaseDir == "" {
-		*flagBaseDir = "/users/" + os.Getenv("USER") + "/code"
-	}
-
-	//
-	repos := map[string]*git.Repository{}
-	scanRepos(repos, *flagBaseDir, 1)
-	handleRepos(repos)
+type repoItem struct {
+	path string
+	repo *git.Repository
+	size int64
 }
 
-func scanRepos(repos map[string]*git.Repository, dir string, depth int) {
-
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		log.Println(err)
-		return
-	}
-
-	for _, e := range entries {
-
-		if e.IsDir() {
-
-			d := path.Join(dir, e.Name())
-
-			// Load repo
-			r, err := git.PlainOpen(d)
-			if err != nil {
-				if err != git.ErrRepositoryNotExists {
-					log.Println(err)
-				}
-				if depth <= maxDepth {
-					scanRepos(repos, path.Join(dir, e.Name()), depth+1)
-				}
-				continue
-			}
-
-			// Filter
-			include := *flagFilter == ""
-			if !include {
-				pieces := strings.Split(*flagFilter, ",")
-				for _, piece := range pieces {
-					if strings.Contains(strings.ToLower(d), strings.TrimSpace(strings.ToLower(piece))) {
-						include = true
-						break
-					}
-				}
-			}
-
-			// Add to map
-			if include {
-				repos[d] = r
-			}
-		}
-	}
-}
-
-type row struct {
+type rowItem struct {
 	path          string
 	branch        string
 	branchNonMain bool
@@ -109,12 +49,95 @@ type row struct {
 	status        git.Status
 }
 
-func handleRepos(repos map[string]*git.Repository) {
+func main() {
 
+	flag.Parse()
+
+	base := getBaseDir()
+
+	repos := scanAllDirs(base, 1)
+	if len(repos) == 0 {
+		fmt.Printf("%s does not contain any repos\n", base)
+		return
+	}
+
+	repos = filterReposByFilterFlag(repos)
 	if len(repos) == 0 {
 		fmt.Println("No repos match your directory & filter")
 		return
 	}
+
+	rows := pullRepos(repos)
+
+	outputTable(rows)
+}
+
+func getBaseDir() string {
+
+	d := *flagBaseDir
+	if d == "" {
+		d = os.Getenv("CODE_DIR")
+	}
+	if d == "" {
+		d = "/users/" + os.Getenv("USER") + "/code"
+	}
+
+	return d
+}
+
+func scanAllDirs(dir string, depth int) (ret []repoItem) {
+
+	if depth > maxDepth {
+		return nil
+	}
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+
+	for _, e := range entries {
+		if e.IsDir() {
+
+			d := path.Join(dir, e.Name())
+
+			file, err := os.Stat(path.Join(d, ".git", "index"))
+			if err != nil {
+				ret = append(ret, scanAllDirs(d, depth+1)...)
+			} else {
+				ret = append(ret, repoItem{path: d, size: file.Size()})
+			}
+		}
+	}
+
+	return ret
+}
+
+func filterReposByFilterFlag(repos []repoItem) (ret []repoItem) {
+
+	if *flagFilter == "" {
+		return repos
+	}
+
+	pieces := strings.Split(*flagFilter, ",")
+	for _, r := range repos {
+		for _, piece := range pieces {
+			if strings.Contains(strings.ToLower(r.path), strings.TrimSpace(strings.ToLower(piece))) {
+				ret = append(ret, r)
+				break
+			}
+		}
+	}
+
+	return ret
+}
+
+func pullRepos(repos []repoItem) (ret []rowItem) {
+
+	sort.Slice(repos, func(i, j int) bool {
+		return repos[i].size > repos[j].size
+	})
 
 	bar := pb.New(len(repos))
 	bar.SetRefreshRate(time.Millisecond * 200)
@@ -123,23 +146,26 @@ func handleRepos(repos map[string]*git.Repository) {
 	bar.Start()
 
 	var guard = make(chan struct{}, maxConcurrent)
-	var wg = sync.WaitGroup{}
-	var i = 0
-	var rows []row
+	var wg sync.WaitGroup
 
-	for k, v := range repos {
+	for _, r := range repos {
 
-		i++
 		wg.Add(1)
 		guard <- struct{}{}
 
-		go func(i int, path string, repo *git.Repository) {
+		go func(path string) {
 
 			defer func() {
 				bar.Increment()
 				wg.Done()
 				<-guard
 			}()
+
+			repo, err := git.PlainOpen(path)
+			if err != nil {
+				log.Println(err)
+				return
+			}
 
 			tree, err := repo.Worktree()
 			if err != nil {
@@ -154,6 +180,7 @@ func handleRepos(repos map[string]*git.Repository) {
 			}
 
 			// Add ignored files
+			gitIgnore := []string{".DS_Store", ".idea/", ".tiltbuild/"}
 			for _, v := range gitIgnore {
 				tree.Excludes = append(tree.Excludes, gitignore.ParsePattern(v, nil))
 			}
@@ -174,7 +201,7 @@ func handleRepos(repos map[string]*git.Repository) {
 			}
 
 			//
-			row := row{
+			row := rowItem{
 				path:   path,
 				branch: strings.TrimPrefix(string(head.Name()), "refs/heads/"),
 				status: status,
@@ -190,13 +217,18 @@ func handleRepos(repos map[string]*git.Repository) {
 				row = pull(tree, row, 1)
 			}
 
-			rows = append(rows, row)
+			ret = append(ret, row)
 
-		}(i, k, v)
+		}(r.path)
 	}
 
 	wg.Wait()
 	bar.Finish()
+
+	return ret
+}
+
+func outputTable(rows []rowItem) {
 
 	sort.Slice(rows, func(i, j int) bool {
 		return strings.ToLower(rows[i].path) < strings.ToLower(rows[j].path)
@@ -281,7 +313,7 @@ func listFiles(s git.Status) string {
 	}
 }
 
-func pull(tree *git.Worktree, row row, attempt int) row {
+func pull(tree *git.Worktree, row rowItem, attempt int) rowItem {
 
 	err := tree.Pull(&git.PullOptions{})
 	if err != nil {
