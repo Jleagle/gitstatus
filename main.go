@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -214,7 +215,10 @@ func pullRepos(repos []repoItem) (ret []rowItem) {
 
 			// Pull
 			if status.IsClean() && *flagPull {
-				row = pull(tree, row, 1)
+				row = pull(tree, bar, row, 1)
+			} else {
+				//goland:noinspection GoErrorStringFormat
+				row.pulledError = errors.New("Unclean")
 			}
 
 			ret = append(ret, row)
@@ -248,7 +252,7 @@ func outputTable(rows []rowItem) {
 
 			var action = ""
 			if row.pulledError != nil {
-				action = color.RedString("ERROR: " + row.pulledError.Error())
+				action = color.RedString(row.pulledError.Error())
 			} else if row.pulledChanges {
 				action = color.GreenString("Updated")
 			} else if row.pulled {
@@ -271,7 +275,7 @@ func outputTable(rows []rowItem) {
 	}
 
 	if hidden > 0 {
-		fmt.Printf("%d repos with nothing to report\n\n", hidden)
+		fmt.Println(color.GreenString(fmt.Sprintf("%d repos with nothing to report\n", hidden)))
 	}
 }
 
@@ -313,21 +317,27 @@ func listFiles(s git.Status) string {
 	}
 }
 
-func pull(tree *git.Worktree, row rowItem, attempt int) rowItem {
+func pull(tree *git.Worktree, bar *pb.ProgressBar, row rowItem, attempt int) rowItem {
 
 	err := tree.Pull(&git.PullOptions{})
 	if err != nil {
 		if err.Error() == "already up-to-date" {
 			row.pulled = true
+		} else if strings.HasPrefix(err.Error(), "ssh: handshake failed: ") {
+			bar.Finish()
+			fmt.Println(color.RedString("Key missing from SSH agent"))
+			os.Exit(0)
 		} else {
 			if attempt <= maxRetries {
-				return pull(tree, row, attempt+1)
+				return pull(tree, bar, row, attempt+1)
 			}
 			row.pulledError = err
 		}
-	} else {
-		row.pulledChanges = true
+
+		return row
 	}
+
+	row.pulledChanges = true
 
 	return row
 }
