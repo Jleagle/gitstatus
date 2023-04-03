@@ -32,6 +32,12 @@ var (
 	flagPull      = flag.Bool("pull", false, "Pull repos")
 	flagShowFiles = flag.Bool("files", false, "Show all modified files")
 	flagShowAll   = flag.Bool("all", false, "Show all repos, even if no changes")
+
+	gitIgnore = []string{
+		".DS_Store",
+		".idea/",
+		".tiltbuild/",
+	}
 )
 
 type repoItem struct {
@@ -181,7 +187,6 @@ func pullRepos(repos []repoItem) (ret []rowItem) {
 			}
 
 			// Add ignored files
-			gitIgnore := []string{".DS_Store", ".idea/", ".tiltbuild/"}
 			for _, v := range gitIgnore {
 				tree.Excludes = append(tree.Excludes, gitignore.ParsePattern(v, nil))
 			}
