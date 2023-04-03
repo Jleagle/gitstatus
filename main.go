@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/exec"
 	"path"
 	"sort"
 	"strconv"
@@ -32,6 +33,7 @@ var (
 	flagPull      = flag.Bool("pull", false, "Pull repos")
 	flagShowFiles = flag.Bool("files", false, "Show all modified files")
 	flagShowAll   = flag.Bool("all", false, "Show all repos, even if no changes")
+	flagUpdate    = flag.Bool("update", false, "Update this app before running")
 
 	gitIgnore = []string{
 		".DS_Store",
@@ -59,6 +61,18 @@ type rowItem struct {
 func main() {
 
 	flag.Parse()
+
+	if *flagUpdate {
+		b, err := exec.Command("go", "install", "github.com/Jleagle/gitstatus").Output()
+		if err != nil {
+			log.Println(err)
+		} else if len(b) == 0 {
+			fmt.Println("App Updated")
+		} else {
+			fmt.Println(string(b))
+		}
+		return
+	}
 
 	base := getBaseDir()
 
