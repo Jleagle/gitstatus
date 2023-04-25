@@ -234,7 +234,7 @@ func pullRepos(repos []repoItem) (ret []rowItem) {
 			}
 
 			// Pull
-			if status.IsClean() && *flagPull {
+			if *flagPull && status.IsClean() {
 				row = pull(tree, bar, row, 1)
 			} else {
 				//goland:noinspection GoErrorStringFormat
