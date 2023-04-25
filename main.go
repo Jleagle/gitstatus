@@ -156,6 +156,7 @@ func filterReposByFilterFlag(repos []repoItem) (ret []repoItem) {
 
 func pullRepos(repos []repoItem) (ret []rowItem) {
 
+	// Run large repos first for speed
 	sort.Slice(repos, func(i, j int) bool {
 		return repos[i].size > repos[j].size
 	})
@@ -253,6 +254,7 @@ func pullRepos(repos []repoItem) (ret []rowItem) {
 
 func outputTable(rows []rowItem) {
 
+	// Alphabetical for display
 	sort.Slice(rows, func(i, j int) bool {
 		return strings.ToLower(rows[i].path) < strings.ToLower(rows[j].path)
 	})
