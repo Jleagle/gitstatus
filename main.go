@@ -286,9 +286,11 @@ func outputTable(rows []rowItem) {
 				action,
 				listFiles(row.status),
 			})
-		} else {
-			hidden++
+
+			continue
 		}
+
+		hidden++
 	}
 
 	if tab.Length() > 0 {
