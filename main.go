@@ -74,11 +74,11 @@ func main() {
 		return
 	}
 
-	base := getBaseDir()
+	baseDir := getBaseDir()
 
-	repos := scanAllDirs(base, 1)
+	repos := scanAllDirs(baseDir, 1)
 	if len(repos) == 0 {
-		fmt.Printf("%s does not contain any repos\n", base)
+		fmt.Printf("%s does not contain any repos\n", baseDir)
 		return
 	}
 
@@ -90,7 +90,7 @@ func main() {
 
 	rows := pullRepos(repos)
 
-	outputTable(rows)
+	outputTable(rows, baseDir)
 }
 
 func getBaseDir() string {
@@ -252,7 +252,7 @@ func pullRepos(repos []repoItem) (ret []rowItem) {
 	return ret
 }
 
-func outputTable(rows []rowItem) {
+func outputTable(rows []rowItem, baseDir string) {
 
 	// Alphabetical for display
 	sort.Slice(rows, func(i, j int) bool {
@@ -281,7 +281,7 @@ func outputTable(rows []rowItem) {
 			}
 
 			tab.AppendRow(table.Row{
-				strings.TrimPrefix(row.path, *flagBaseDir),
+				strings.TrimPrefix(row.path, baseDir),
 				row.branch,
 				action,
 				listFiles(row.status),
