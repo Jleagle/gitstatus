@@ -263,7 +263,7 @@ func outputTable(rows []rowItem, baseDir string) {
 
 	tab := table.NewWriter()
 	tab.SetOutputMirror(os.Stdout)
-	tab.AppendHeader(table.Row{"Repo", "Branch", "Actions", "Modified"})
+	tab.AppendHeader(table.Row{"Repo", "Branch", "Status", "Modified"})
 	tab.SetStyle(table.StyleRounded)
 	//tab.SortBy([]table.SortBy{{Name: "Repo", Mode: table.Asc}}) // Is this case insensitive?
 
