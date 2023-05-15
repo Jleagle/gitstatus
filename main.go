@@ -348,16 +348,15 @@ func pull(tree *git.Worktree, bar *pb.ProgressBar, row rowItem, attempt int) row
 	if err != nil {
 		if err.Error() == "already up-to-date" {
 			row.pulled = true
-		} else if strings.HasPrefix(err.Error(), "ssh: handshake failed: ") {
+		} else if strings.HasPrefix(err.Error(), "ssh:") {
 			bar.Finish()
-			fmt.Println(color.RedString("Key missing from SSH agent"))
+			fmt.Println(color.RedString(err.Error()))
 			os.Exit(0)
-		} else {
-			if attempt <= maxRetries {
-				return pull(tree, bar, row, attempt+1)
-			}
-			row.pulledError = err
+		} else if attempt <= maxRetries {
+			return pull(tree, bar, row, attempt+1)
 		}
+
+		row.pulledError = err
 
 		return row
 	}
