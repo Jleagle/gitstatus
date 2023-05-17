@@ -16,6 +16,7 @@ import (
 
 	"github.com/cheggaaa/pb/v3"
 	"github.com/fatih/color"
+	"github.com/go-git/go-billy/v5/osfs"
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing/format/gitignore"
 	"github.com/jedib0t/go-pretty/v6/table"
@@ -34,12 +35,7 @@ var (
 	flagShowFiles = flag.Bool("files", false, "Show all modified files")
 	flagShowAll   = flag.Bool("all", false, "Show all repos, even if no changes")
 	flagUpdate    = flag.Bool("update", false, "Update this app before running")
-
-	gitIgnore = []string{
-		".DS_Store",
-		".idea/",
-		".tiltbuild/",
-	}
+	flagFullPaths = flag.Bool("fullpaths", false, "Show the full repo path")
 )
 
 type repoItem struct {
@@ -88,9 +84,11 @@ func main() {
 		return
 	}
 
-	rows := pullRepos(repos)
+	patterns := getGlobalGitIgnore()
 
-	outputTable(rows, baseDir)
+	rows := pullRepos(repos, patterns, baseDir)
+
+	outputTable(rows)
 }
 
 func getBaseDir() string {
@@ -154,13 +152,24 @@ func filterReposByFilterFlag(repos []repoItem) (ret []repoItem) {
 	return ret
 }
 
-func pullRepos(repos []repoItem) (ret []rowItem) {
+func getGlobalGitIgnore() []gitignore.Pattern {
+
+	patterns, err := gitignore.LoadGlobalPatterns(osfs.New("/"))
+	if err != nil {
+		log.Println(err)
+	}
+
+	return patterns
+}
+
+func pullRepos(repos []repoItem, globalPatterns []gitignore.Pattern, baseDir string) (ret []rowItem) {
 
 	// Run large repos first for speed
 	sort.Slice(repos, func(i, j int) bool {
 		return repos[i].size > repos[j].size
 	})
 
+	//
 	bar := pb.New(len(repos))
 	bar.SetRefreshRate(time.Millisecond * 200)
 	bar.SetWriter(os.Stdout)
@@ -201,20 +210,17 @@ func pullRepos(repos []repoItem) (ret []rowItem) {
 				return
 			}
 
-			// Add ignored files
-			for _, v := range gitIgnore {
-				tree.Excludes = append(tree.Excludes, gitignore.ParsePattern(v, nil))
-			}
-
+			// Load gitignores
 			patterns, err := gitignore.ReadPatterns(tree.Filesystem, nil)
 			if err != nil {
 				log.Println(err)
 				return
 			}
 
+			tree.Excludes = append(tree.Excludes, globalPatterns...)
 			tree.Excludes = append(tree.Excludes, patterns...)
 
-			//
+			// Get modified files
 			status, err := tree.Status()
 			if err != nil {
 				log.Println(err)
