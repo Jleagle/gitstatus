@@ -26,6 +26,9 @@ const (
 	maxDepth      = 2
 	maxConcurrent = 10
 	maxRetries    = 1
+
+	envFullPaths = "GS_FULL_PATHS"
+	envDir       = "GS_DIR"
 )
 
 var (
@@ -95,7 +98,7 @@ func getBaseDir() string {
 
 	d := *flagBaseDir
 	if d == "" {
-		d = os.Getenv("CODE_DIR")
+		d = os.Getenv(envDir)
 	}
 	if d == "" {
 		d = "/users/" + os.Getenv("USER") + "/code"
@@ -227,7 +230,12 @@ func pullRepos(repos []repoItem, globalPatterns []gitignore.Pattern, baseDir str
 				return
 			}
 
-			//
+			// Trim the base bath off the rep paths
+			if !*flagFullPaths && os.Getenv(envFullPaths) == "" {
+				path = strings.TrimPrefix(path, baseDir)
+			}
+
+			// Make row
 			row := rowItem{
 				path:   path,
 				branch: strings.TrimPrefix(string(head.Name()), "refs/heads/"),
@@ -260,7 +268,7 @@ func pullRepos(repos []repoItem, globalPatterns []gitignore.Pattern, baseDir str
 	return ret
 }
 
-func outputTable(rows []rowItem, baseDir string) {
+func outputTable(rows []rowItem) {
 
 	// Alphabetical for display
 	sort.Slice(rows, func(i, j int) bool {
@@ -289,7 +297,7 @@ func outputTable(rows []rowItem, baseDir string) {
 			}
 
 			tab.AppendRow(table.Row{
-				strings.TrimPrefix(row.path, baseDir),
+				row.path,
 				row.branch,
 				action,
 				listFiles(row.status),
