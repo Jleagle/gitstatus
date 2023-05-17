@@ -27,8 +27,8 @@ const (
 	maxConcurrent = 10
 	maxRetries    = 1
 
-	envFullPaths = "GS_FULL_PATHS"
-	envDir       = "GS_DIR"
+	envFullPaths = "GITSTATUS_FULL_PATHS"
+	envDir       = "GITSTATUS_DIR"
 )
 
 var (

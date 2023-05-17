@@ -14,9 +14,9 @@
 
 ### Code Directory
 
-Scans `/users/user/code` by default, falls back to `os.Getenv("GS_DIR")`, `gitstatus -d /codedir` to override.
+Scans `/users/user/code` by default, falls back to `os.Getenv("GITSTATUS_DIR")`, `gitstatus -d /codedir` to override.
 
 ### ENV
 
-GS_DIR="/dir"
-GS_FULL_PATHS="1"
+GITSTATUS_DIR="/dir"
+GITSTATUS_FULL_PATHS="1"
