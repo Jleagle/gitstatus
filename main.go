@@ -354,8 +354,10 @@ func pull(tree *git.Worktree, bar *pb.ProgressBar, row rowItem, attempt int) row
 
 	err := tree.Pull(&git.PullOptions{})
 	if err != nil {
+
 		if err.Error() == "already up-to-date" {
 			row.pulled = true
+			return row
 		} else if strings.HasPrefix(err.Error(), "ssh:") {
 			bar.Finish()
 			fmt.Println(color.RedString(err.Error()))
@@ -365,7 +367,6 @@ func pull(tree *git.Worktree, bar *pb.ProgressBar, row rowItem, attempt int) row
 		}
 
 		row.pulledError = err
-
 		return row
 	}
 
