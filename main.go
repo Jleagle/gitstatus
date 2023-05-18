@@ -87,9 +87,7 @@ func main() {
 		return
 	}
 
-	patterns := getGlobalGitIgnore()
-
-	rows := pullRepos(repos, patterns, baseDir)
+	rows := pullRepos(repos, baseDir)
 
 	outputTable(rows)
 }
@@ -155,17 +153,13 @@ func filterReposByFilterFlag(repos []repoItem) (ret []repoItem) {
 	return ret
 }
 
-func getGlobalGitIgnore() []gitignore.Pattern {
+func pullRepos(repos []repoItem, baseDir string) (ret []rowItem) {
 
-	patterns, err := gitignore.LoadGlobalPatterns(osfs.New("/"))
+	// Get global gitignore patterns
+	globalPatterns, err := gitignore.LoadGlobalPatterns(osfs.New("/"))
 	if err != nil {
 		log.Println(err)
 	}
-
-	return patterns
-}
-
-func pullRepos(repos []repoItem, globalPatterns []gitignore.Pattern, baseDir string) (ret []rowItem) {
 
 	// Run large repos first for speed
 	sort.Slice(repos, func(i, j int) bool {
