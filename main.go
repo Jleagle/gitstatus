@@ -39,6 +39,7 @@ var (
 	flagShowAll   = flag.Bool("all", false, "Show all repos, even if no changes")
 	flagUpdate    = flag.Bool("update", false, "Update this app before running")
 	flagFullPaths = flag.Bool("fullpaths", false, "Show the full repo path")
+	flagVerbose   = flag.Bool("v", false, "Log slow repos")
 )
 
 type repoItem struct {
@@ -171,7 +172,9 @@ func pullRepos(repos []repoItem, baseDir string) (ret []rowItem) {
 	bar.SetRefreshRate(time.Millisecond * 200)
 	bar.SetWriter(os.Stdout)
 	bar.SetWidth(100)
-	bar.Start()
+	if !*flagVerbose {
+		bar.Start()
+	}
 
 	var guard = make(chan struct{}, maxConcurrent)
 	var wg sync.WaitGroup
@@ -188,6 +191,13 @@ func pullRepos(repos []repoItem, baseDir string) (ret []rowItem) {
 				wg.Done()
 				<-guard
 			}()
+
+			if *flagVerbose {
+				t := time.AfterFunc(time.Second, func() {
+					log.Println(path + " taking over a second")
+				})
+				defer t.Stop()
+			}
 
 			repo, err := git.PlainOpen(path)
 			if err != nil {
