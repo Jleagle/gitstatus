@@ -63,13 +63,11 @@ func main() {
 	flag.Parse()
 
 	if *flagUpdate {
-		b, err := exec.Command("go", "install", "github.com/Jleagle/gitstatus@latest").Output()
+		_, err := exec.Command("go", "install", "github.com/Jleagle/gitstatus@latest").Output()
 		if err != nil {
 			log.Println(err)
-		} else if len(b) == 0 {
-			fmt.Println("App Updated")
 		} else {
-			fmt.Println(string(b))
+			fmt.Println("App Updated")
 		}
 		return
 	}
