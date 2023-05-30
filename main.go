@@ -23,44 +23,55 @@ import (
 )
 
 const (
-	maxDepth      = 2
-	maxConcurrent = 10
-	maxRetries    = 1
-
-	envFullPaths = "GITSTATUS_FULL_PATHS"
-	envDir       = "GITSTATUS_DIR"
+	envDir   = "GITSTATUS_DIR"
+	envFull  = "GITSTATUS_FULL"
+	envStale = "GITSTATUS_STALE"
 )
 
 var (
-	flagBaseDir   = flag.String("d", "", "Directory to scan")
-	flagFilter    = flag.String("filter", "", "Filter repos, comma delimited")
-	flagPull      = flag.Bool("pull", false, "Pull repos")
-	flagShowFiles = flag.Bool("files", false, "Show all modified files")
-	flagShowAll   = flag.Bool("all", false, "Show all repos, even if no changes")
-	flagUpdate    = flag.Bool("update", false, "Update this app before running")
-	flagFullPaths = flag.Bool("fullpaths", false, "Show the full repo path")
-	flagVerbose   = flag.Bool("v", false, "Log slow repos")
+	flagDir     = flag.String("dir", "", "Directory to scan")
+	flagFilter  = flag.String("filter", "", "Filter repos, comma delimited")
+	flagFull    = flag.Bool("full", false, "Show the full repo path")
+	flagPull    = flag.Bool("pull", false, "Pull repos")
+	flagShowAll = flag.Bool("all", false, "Show all repos, even if no changes")
+	flagStale   = flag.Bool("stale", false, "Always show stale")
+	flagUpdate  = flag.Bool("update", false, "Update this app before running")
+	flagVerbose = flag.Bool("v", false, "Log slow repos")
 )
 
 type repoItem struct {
-	path string
-	repo *git.Repository
-	size int64
+	path        string
+	repo        *git.Repository
+	size        int64
+	timeStarted time.Time
+	lastCommit  time.Time
 }
 
 type rowItem struct {
-	path          string
-	branch        string
-	branchNonMain bool
-	pulled        bool
-	pulledChanges bool
-	pulledError   error
-	status        git.Status
+	path           string
+	branch         string
+	branchNonMain  bool
+	pulled         bool
+	pulledChanges  bool
+	pulledError    error
+	files          string
+	commitDays     string
+	commitDaysOver bool
 }
 
 func main() {
 
 	flag.Parse()
+
+	if os.Getenv(envStale) != "" {
+		flagStale = boolP(true)
+	}
+	if os.Getenv(envFull) != "" {
+		flagFull = boolP(true)
+	}
+	if d := os.Getenv(envDir); d != "" {
+		flagDir = stringP(d)
+	}
 
 	if *flagUpdate {
 		_, err := exec.Command("go", "install", "github.com/Jleagle/gitstatus@latest").Output()
@@ -72,7 +83,10 @@ func main() {
 		return
 	}
 
-	baseDir := getBaseDir()
+	baseDir := *flagDir
+	if baseDir == "" {
+		baseDir = "/users/" + os.Getenv("USER") + "/code"
+	}
 
 	repos := scanAllDirs(baseDir, 1)
 	if len(repos) == 0 {
@@ -91,18 +105,7 @@ func main() {
 	outputTable(rows)
 }
 
-func getBaseDir() string {
-
-	d := *flagBaseDir
-	if d == "" {
-		d = os.Getenv(envDir)
-	}
-	if d == "" {
-		d = "/users/" + os.Getenv("USER") + "/code"
-	}
-
-	return d
-}
+const maxDepth = 2
 
 func scanAllDirs(dir string, depth int) (ret []repoItem) {
 
@@ -152,6 +155,11 @@ func filterReposByFilterFlag(repos []repoItem) (ret []repoItem) {
 	return ret
 }
 
+const (
+	maxConcurrent = 10
+	slowRepos     = time.Second * 3
+)
+
 func pullRepos(repos []repoItem, baseDir string) (ret []rowItem) {
 
 	// Get global gitignore patterns
@@ -182,7 +190,7 @@ func pullRepos(repos []repoItem, baseDir string) (ret []rowItem) {
 		wg.Add(1)
 		guard <- struct{}{}
 
-		go func(path string) {
+		go func(ri repoItem) {
 
 			defer func() {
 				bar.Increment()
@@ -191,16 +199,38 @@ func pullRepos(repos []repoItem, baseDir string) (ret []rowItem) {
 			}()
 
 			if *flagVerbose {
-				t := time.AfterFunc(time.Second, func() {
-					log.Println(path + " taking over a second")
-				})
-				defer t.Stop()
+
+				log.Printf(ri.path + " started")
+				ri.timeStarted = time.Now()
+
+				defer func(ri repoItem) {
+					if dur := time.Now().Sub(ri.timeStarted); dur > slowRepos {
+						log.Println(color.RedString(ri.path + " took " + dur.Truncate(time.Second/100).String()))
+					}
+				}(ri)
 			}
 
-			repo, err := git.PlainOpen(path)
+			repo, err := git.PlainOpen(ri.path)
 			if err != nil {
 				log.Println(err)
 				return
+			}
+
+			if *flagStale {
+
+				gitLog, err := repo.Log(&git.LogOptions{Order: git.LogOrderDefault})
+				if err != nil {
+					log.Println(err)
+				}
+
+				for {
+					commit, err := gitLog.Next()
+					if err != nil {
+						log.Println(err)
+					}
+					ri.lastCommit = commit.Committer.When
+					break
+				}
 			}
 
 			tree, err := repo.Worktree()
@@ -233,15 +263,20 @@ func pullRepos(repos []repoItem, baseDir string) (ret []rowItem) {
 			}
 
 			// Trim the base bath off the rep paths
-			if !*flagFullPaths && os.Getenv(envFullPaths) == "" {
-				path = strings.TrimPrefix(path, baseDir)
+			if !*flagFull {
+				ri.path = strings.TrimPrefix(ri.path, baseDir)
 			}
+
+			// Check if stale is over limit
+			days, over := commitDays(ri.lastCommit)
 
 			// Make row
 			row := rowItem{
-				path:   path,
-				branch: strings.TrimPrefix(string(head.Name()), "refs/heads/"),
-				status: status,
+				path:           ri.path,
+				branch:         strings.TrimPrefix(string(head.Name()), "refs/heads/"),
+				files:          listFiles(status),
+				commitDays:     days,
+				commitDaysOver: over,
 			}
 
 			if row.branch != "master" && row.branch != "main" {
@@ -260,8 +295,7 @@ func pullRepos(repos []repoItem, baseDir string) (ret []rowItem) {
 			}
 
 			ret = append(ret, row)
-
-		}(r.path)
+		}(r)
 	}
 
 	wg.Wait()
@@ -277,33 +311,46 @@ func outputTable(rows []rowItem) {
 		return strings.ToLower(rows[i].path) < strings.ToLower(rows[j].path)
 	})
 
+	header := table.Row{"Repo", "Branch", "Modified"}
+	if *flagPull {
+		header = append(header, "Pull")
+	}
+	if *flagStale {
+		header = append(header, "Stale")
+	}
+
 	tab := table.NewWriter()
 	tab.SetOutputMirror(os.Stdout)
-	tab.AppendHeader(table.Row{"Repo", "Branch", "Status", "Modified"})
+	tab.AppendHeader(header)
 	tab.SetStyle(table.StyleRounded)
-	//tab.SortBy([]table.SortBy{{Name: "Repo", Mode: table.Asc}}) // Is this case insensitive?
 
 	hidden := 0
 
 	for _, row := range rows {
 
-		if *flagShowAll || row.branchNonMain || row.pulledChanges || len(row.status) > 0 || row.pulledError != nil {
+		if *flagShowAll || row.branchNonMain || row.pulledError != nil ||
+			(*flagPull && row.pulledChanges) ||
+			(*flagStale && row.commitDaysOver) {
 
-			var action = ""
-			if row.pulledError != nil {
-				action = color.RedString(row.pulledError.Error())
-			} else if row.pulledChanges {
-				action = color.GreenString("Updated")
-			} else if row.pulled {
-				action = "Pulled"
+			tr := table.Row{row.path, row.branch, row.files}
+			if *flagPull {
+
+				var action = ""
+				if row.pulledError != nil {
+					action = color.RedString(row.pulledError.Error())
+				} else if row.pulledChanges {
+					action = color.GreenString("Updated")
+				} else if row.pulled {
+					action = "Pulled"
+				}
+
+				tr = append(tr, action)
+			}
+			if *flagStale {
+				tr = append(tr, row.commitDays)
 			}
 
-			tab.AppendRow(table.Row{
-				row.path,
-				row.branch,
-				action,
-				listFiles(row.status),
-			})
+			tab.AppendRow(tr)
 
 			continue
 		}
@@ -320,43 +367,43 @@ func outputTable(rows []rowItem) {
 	}
 }
 
-var statusNames = map[git.StatusCode]string{
-	' ': "Unmodified",
-	'?': "Untracked",
-	'M': "Modified",
-	'A': "Added",
-	'D': "Deleted",
-	'R': "Renamed",
-	'C': "Copied",
-	'U': "UpdatedButUnmerged",
-}
-
 func listFiles(s git.Status) string {
 
-	if *flagShowFiles {
-
-		var files []string
-		for k, v := range s {
-			files = append(files, strings.ToUpper(statusNames[v.Worktree])+": "+k)
-		}
-		return strings.Join(files, "\n")
-
-	} else {
-
-		var count int
-		for _, status := range s {
-			if status.Worktree != git.Unmodified || status.Staging != git.Unmodified {
-				count++
-			}
-		}
-
-		if count > 0 {
-			return color.RedString(strconv.Itoa(count))
-		} else {
-			return strconv.Itoa(count)
+	var count int
+	for _, status := range s {
+		if status.Worktree != git.Unmodified || status.Staging != git.Unmodified {
+			count++
 		}
 	}
+
+	if count > 0 {
+		return color.RedString(strconv.Itoa(count))
+	} else {
+		return strconv.Itoa(count)
+	}
 }
+
+const staleDays = 180 // Days
+
+// commitDays returns daysStale, isStale
+func commitDays(t time.Time) (string, bool) {
+
+	if t.IsZero() {
+		return "", false
+	}
+
+	d := time.Now().Sub(t)
+	days := int(d.Hours() / 24)
+	daysStr := fmt.Sprintf("%d days", days)
+
+	if days > staleDays {
+		return color.RedString(daysStr), true
+	}
+
+	return daysStr, false
+}
+
+const maxRetries = 1
 
 func pull(tree *git.Worktree, bar *pb.ProgressBar, row rowItem, attempt int) rowItem {
 
@@ -381,4 +428,13 @@ func pull(tree *git.Worktree, bar *pb.ProgressBar, row rowItem, attempt int) row
 	row.pulledChanges = true
 
 	return row
+}
+
+// Helpers
+func boolP(b bool) *bool {
+	return &b
+}
+
+func stringP(b string) *string {
+	return &b
 }
