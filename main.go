@@ -316,7 +316,7 @@ func outputTable(rows []rowItem) {
 		}
 	})
 
-	header := table.Row{"Repo", "Modified", "Branch"}
+	header := table.Row{"Repo", "Branch", "Modified"}
 	if *flagPull {
 		header = append(header, "Pull")
 	}
@@ -337,7 +337,7 @@ func outputTable(rows []rowItem) {
 			(*flagPull && row.pulledChanges) ||
 			(*flagStale && row.commitDaysOver) {
 
-			tr := table.Row{row.path, row.files, row.branch}
+			tr := table.Row{row.path, row.branch, row.files}
 			if *flagPull {
 
 				var action = ""
