@@ -57,6 +57,7 @@ type rowItem struct {
 	files          string
 	commitDays     string
 	commitDaysOver bool
+	lastCommit     time.Time
 }
 
 func main() {
@@ -277,6 +278,7 @@ func pullRepos(repos []repoItem, baseDir string) (ret []rowItem) {
 				files:          listFiles(status),
 				commitDays:     days,
 				commitDaysOver: over,
+				lastCommit:     ri.lastCommit,
 			}
 
 			if row.branch != "master" && row.branch != "main" {
@@ -306,9 +308,12 @@ func pullRepos(repos []repoItem, baseDir string) (ret []rowItem) {
 
 func outputTable(rows []rowItem) {
 
-	// Alphabetical for display
 	sort.Slice(rows, func(i, j int) bool {
-		return strings.ToLower(rows[i].path) < strings.ToLower(rows[j].path)
+		if *flagStale {
+			return rows[i].lastCommit.Unix() < rows[j].lastCommit.Unix()
+		} else {
+			return strings.ToLower(rows[i].path) < strings.ToLower(rows[j].path)
+		}
 	})
 
 	header := table.Row{"Repo", "Modified", "Branch"}
