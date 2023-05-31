@@ -90,7 +90,7 @@ func main() {
 
 	repos := scanAllDirs(baseDir, 1)
 	if len(repos) == 0 {
-		fmt.Printf("%s does not contain any repos\n", baseDir)
+		fmt.Println(baseDir + " does not contain any repos")
 		return
 	}
 
