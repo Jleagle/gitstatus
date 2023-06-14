@@ -412,7 +412,11 @@ const maxRetries = 1
 
 func pull(tree *git.Worktree, bar *pb.ProgressBar, row rowItem, attempt int) rowItem {
 
-	err := tree.Pull(&git.PullOptions{})
+	ops := &git.PullOptions{
+		Depth: 1,
+	}
+
+	err := tree.Pull(ops)
 	if err != nil {
 
 		if err == git.NoErrAlreadyUpToDate {
