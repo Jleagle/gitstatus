@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -9,16 +8,12 @@ import (
 	"os/exec"
 	"path"
 	"sort"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/cheggaaa/pb/v3"
 	"github.com/fatih/color"
-	"github.com/go-git/go-billy/v5/osfs"
-	"github.com/go-git/go-git/v5"
-	"github.com/go-git/go-git/v5/plumbing/format/gitignore"
 	"github.com/jedib0t/go-pretty/v6/table"
 )
 
@@ -40,24 +35,40 @@ var (
 )
 
 type repoItem struct {
-	path        string
-	repo        *git.Repository
-	size        int64
-	timeStarted time.Time
-	lastCommit  time.Time
+	path string
+	size int64
 }
 
 type rowItem struct {
-	path           string
-	branch         string
-	branchNonMain  bool
-	pulled         bool
-	pulledChanges  bool
-	pulledError    error
-	files          string
-	commitDays     string
-	commitDaysOver bool
-	lastCommit     time.Time
+	path         string     //
+	branch       string     //
+	changedFiles string     // Modified files
+	updated      bool       // If something was pulled down
+	lastCommit   *time.Time //
+}
+
+func (r rowItem) show() bool {
+	return !r.isMain()
+}
+
+func (r rowItem) isMain() bool {
+	return r.branch == "master" || r.branch == "main"
+}
+
+func (r rowItem) isDirty() bool {
+	return r.changedFiles != ""
+}
+
+func (r rowItem) daysStale() int {
+	if r.lastCommit == nil {
+		return 0
+	}
+	d := time.Since(*r.lastCommit)
+	return int(d.Hours() / 24)
+}
+
+func (r rowItem) isStale() bool {
+	return r.daysStale() > staleDays
 }
 
 func main() {
@@ -101,9 +112,9 @@ func main() {
 		return
 	}
 
-	rows := pullRepos(repos, baseDir)
+	rows := pullRepos(repos)
 
-	outputTable(rows)
+	outputTable(rows, baseDir)
 }
 
 const maxDepth = 2
@@ -156,18 +167,9 @@ func filterReposByFilterFlag(repos []repoItem) (ret []repoItem) {
 	return ret
 }
 
-const (
-	maxConcurrent = 10
-	slowRepos     = time.Second * 3
-)
+const maxConcurrent = 10
 
-func pullRepos(repos []repoItem, baseDir string) (ret []rowItem) {
-
-	// Get global gitignore patterns
-	globalPatterns, err := gitignore.LoadGlobalPatterns(osfs.New("/"))
-	if err != nil {
-		log.Println(err)
-	}
+func pullRepos(repos []repoItem) (ret []rowItem) {
 
 	// Run large repos first for speed
 	sort.Slice(repos, func(i, j int) bool {
@@ -200,100 +202,41 @@ func pullRepos(repos []repoItem, baseDir string) (ret []rowItem) {
 			}()
 
 			if *flagVerbose {
-
 				log.Printf(ri.path + " started")
-				ri.timeStarted = time.Now()
-
-				defer func(ri repoItem) {
-					if dur := time.Now().Sub(ri.timeStarted); dur > slowRepos {
-						log.Println(color.RedString(ri.path + " took " + dur.Truncate(time.Second/100).String()))
-					}
-				}(ri)
 			}
 
-			repo, err := git.PlainOpen(ri.path)
+			// Make row
+			row := rowItem{path: ri.path}
+
+			var err error
+
+			row.changedFiles, err = gitDiff(ri.path)
+			if err != nil {
+				log.Println(err)
+				return
+			}
+
+			row.branch, err = gitBranch(ri.path)
 			if err != nil {
 				log.Println(err)
 				return
 			}
 
 			if *flagStale {
-
-				gitLog, err := repo.Log(&git.LogOptions{Order: git.LogOrderDefault})
+				row.lastCommit, err = gitLog(ri.path)
 				if err != nil {
 					log.Println(err)
+					return
 				}
-
-				for {
-					commit, err := gitLog.Next()
-					if err != nil {
-						log.Println(err)
-					}
-					ri.lastCommit = commit.Committer.When
-					break
-				}
-			}
-
-			tree, err := repo.Worktree()
-			if err != nil {
-				log.Println(err)
-				return
-			}
-
-			head, err := repo.Head()
-			if err != nil {
-				log.Println(err)
-				return
-			}
-
-			// Load gitignores
-			patterns, err := gitignore.ReadPatterns(tree.Filesystem, nil)
-			if err != nil {
-				log.Println(err)
-				return
-			}
-
-			tree.Excludes = append(tree.Excludes, globalPatterns...)
-			tree.Excludes = append(tree.Excludes, patterns...)
-
-			// Get modified files
-			status, err := tree.Status()
-			if err != nil {
-				log.Println(err)
-				return
-			}
-
-			// Trim the base bath off the rep paths
-			if !*flagFull {
-				ri.path = strings.TrimPrefix(ri.path, baseDir)
-			}
-
-			// Check if stale is over limit
-			days, over := commitDays(ri.lastCommit)
-
-			// Make row
-			row := rowItem{
-				path:           ri.path,
-				branch:         strings.TrimPrefix(string(head.Name()), "refs/heads/"),
-				files:          listFiles(status),
-				commitDays:     days,
-				commitDaysOver: over,
-				lastCommit:     ri.lastCommit,
-			}
-
-			if row.branch != "master" && row.branch != "main" {
-				row.branch = color.RedString(row.branch)
-				row.branchNonMain = true
 			}
 
 			// Pull
-			if status.IsClean() {
-				if *flagPull {
-					row = pull(tree, bar, row, 1)
+			if *flagPull && !row.isDirty() {
+				row.updated, err = gitPull(row, bar)
+				if err != nil {
+					log.Println(err)
+					return
 				}
-			} else {
-				//goland:noinspection GoErrorStringFormat
-				row.pulledError = errors.New("Unclean")
 			}
 
 			ret = append(ret, row)
@@ -306,7 +249,7 @@ func pullRepos(repos []repoItem, baseDir string) (ret []rowItem) {
 	return ret
 }
 
-func outputTable(rows []rowItem) {
+func outputTable(rows []rowItem, baseDir string) {
 
 	sort.Slice(rows, func(i, j int) bool {
 		if *flagStale {
@@ -333,26 +276,48 @@ func outputTable(rows []rowItem) {
 
 	for _, row := range rows {
 
-		if *flagShowAll || row.branchNonMain || row.pulledError != nil ||
-			(*flagPull && row.pulledChanges) ||
-			(*flagStale && row.commitDaysOver) {
+		if *flagShowAll || !row.isMain() || row.isDirty() || row.updated {
 
-			tr := table.Row{row.path, row.branch, row.files}
+			// Format path
+			if !*flagFull {
+				row.path = strings.TrimPrefix(row.path, baseDir)
+			}
+
+			// Format branch
+			if len(row.branch) > 30 {
+				row.branch = row.branch[:30] + "…"
+			}
+			if !row.isMain() {
+				row.branch = color.RedString(row.branch)
+			}
+
+			// Format files
+			row.changedFiles = color.RedString(row.changedFiles)
+
+			//
+			tr := table.Row{row.path, row.branch, row.changedFiles}
+
 			if *flagPull {
 
 				var action = ""
-				if row.pulledError != nil {
-					action = color.RedString(row.pulledError.Error())
-				} else if row.pulledChanges {
+				if row.updated {
 					action = color.GreenString("Updated")
-				} else if row.pulled {
+				} else {
 					action = "Pulled"
 				}
 
 				tr = append(tr, action)
 			}
+
 			if *flagStale {
-				tr = append(tr, row.commitDays)
+
+				// Format modified files
+				modified := fmt.Sprintf("%d days", row.daysStale())
+				if row.isStale() {
+					modified = color.RedString(modified)
+				}
+
+				tr = append(tr, modified)
 			}
 
 			tab.AppendRow(tr)
@@ -370,73 +335,6 @@ func outputTable(rows []rowItem) {
 	if hidden > 0 {
 		fmt.Println(color.GreenString(fmt.Sprintf("%d repos with nothing to report\n", hidden)))
 	}
-}
-
-func listFiles(s git.Status) string {
-
-	var count int
-	for _, status := range s {
-		if status.Worktree != git.Unmodified || status.Staging != git.Unmodified {
-			count++
-		}
-	}
-
-	if count > 0 {
-		return color.RedString(strconv.Itoa(count))
-	} else {
-		return strconv.Itoa(count)
-	}
-}
-
-const staleDays = 180 // Days
-
-// commitDays returns daysStale, isStale
-func commitDays(t time.Time) (string, bool) {
-
-	if t.IsZero() {
-		return "", false
-	}
-
-	d := time.Now().Sub(t)
-	days := int(d.Hours() / 24)
-	daysStr := fmt.Sprintf("%d days", days)
-
-	if days > staleDays {
-		return color.RedString(daysStr), true
-	}
-
-	return daysStr, false
-}
-
-const maxRetries = 1
-
-func pull(tree *git.Worktree, bar *pb.ProgressBar, row rowItem, attempt int) rowItem {
-
-	ops := &git.PullOptions{
-		Depth: 1,
-	}
-
-	err := tree.Pull(ops)
-	if err != nil {
-
-		if err == git.NoErrAlreadyUpToDate {
-			row.pulled = true
-			return row
-		} else if strings.HasPrefix(err.Error(), "ssh:") {
-			bar.Finish()
-			fmt.Println(color.RedString(err.Error()))
-			os.Exit(0)
-		} else if attempt <= maxRetries {
-			return pull(tree, bar, row, attempt+1)
-		}
-
-		row.pulledError = err
-		return row
-	}
-
-	row.pulledChanges = true
-
-	return row
 }
 
 // Helpers
