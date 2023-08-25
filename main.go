@@ -270,7 +270,9 @@ func outputTable(rows []rowItem, baseDir string) {
 			}
 
 			// Format files
-			row.changedFiles = color.RedString(row.changedFiles)
+			if row.changedFiles != "" {
+				row.changedFiles = color.RedString(row.changedFiles)
+			}
 
 			//
 			tr := table.Row{row.path, row.branch, row.changedFiles}
