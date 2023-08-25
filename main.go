@@ -254,7 +254,7 @@ func outputTable(rows []rowItem, baseDir string) {
 
 	for _, row := range rows {
 
-		if *flagShowAll || !row.isMain() || row.isDirty() || row.updated {
+		if row.show() {
 
 			// Format path
 			if !*flagFull {
