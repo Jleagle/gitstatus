@@ -43,16 +43,7 @@ func main() {
 
 	flag.Parse()
 
-	if os.Getenv(envStale) != "" {
-		flagStale = boolP(true)
-	}
-	if os.Getenv(envFull) != "" {
-		flagFull = boolP(true)
-	}
-	if d := os.Getenv(envDir); d != "" {
-		flagDir = stringP(d)
-	}
-
+	// Install the latest version and exit
 	if *flagUpdate {
 		_, err := exec.Command("go", "install", "github.com/Jleagle/gitstatus@latest").Output()
 		if err != nil {
@@ -63,25 +54,30 @@ func main() {
 		return
 	}
 
+	// Get the base code dir
 	baseDir := *flagDir
 	if baseDir == "" {
 		baseDir = "/users/" + os.Getenv("USER") + "/code"
 	}
 
+	// Get a list of every repo
 	repos := scanAllDirs(baseDir, 1)
 	if len(repos) == 0 {
 		fmt.Println(baseDir + " does not contain any repos")
 		return
 	}
 
+	// Filter by filter flag
 	repos = filterReposByFilterFlag(repos)
 	if len(repos) == 0 {
 		fmt.Println("No repos match your directory & filter")
 		return
 	}
 
+	// Pull repos with a loading bar
 	rows := pullRepos(repos)
 
+	// Show a table of results
 	outputTable(rows, baseDir)
 }
 
@@ -139,7 +135,7 @@ const maxConcurrent = 10
 
 func pullRepos(repos []repoItem) (ret []rowItem) {
 
-	// Run large repos first for speed
+	// Run large repos first so you are not waiting on them at the end
 	sort.Slice(repos, func(i, j int) bool {
 		return repos[i].size > repos[j].size
 	})
