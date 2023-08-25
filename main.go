@@ -280,7 +280,7 @@ func outputTable(rows []rowItem, baseDir string) {
 				var action = ""
 				if row.updated {
 					action = color.GreenString("Updated")
-				} else {
+				} else if !row.isDirty() {
 					action = "Pulled"
 				}
 
