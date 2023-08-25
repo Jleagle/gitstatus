@@ -39,38 +39,6 @@ type repoItem struct {
 	size int64
 }
 
-type rowItem struct {
-	path         string     //
-	branch       string     //
-	changedFiles string     // Modified files
-	updated      bool       // If something was pulled down
-	lastCommit   *time.Time //
-}
-
-func (r rowItem) show() bool {
-	return !r.isMain()
-}
-
-func (r rowItem) isMain() bool {
-	return r.branch == "master" || r.branch == "main"
-}
-
-func (r rowItem) isDirty() bool {
-	return r.changedFiles != ""
-}
-
-func (r rowItem) daysStale() int {
-	if r.lastCommit == nil {
-		return 0
-	}
-	d := time.Since(*r.lastCommit)
-	return int(d.Hours() / 24)
-}
-
-func (r rowItem) isStale() bool {
-	return r.daysStale() > staleDays
-}
-
 func main() {
 
 	flag.Parse()
@@ -335,13 +303,4 @@ func outputTable(rows []rowItem, baseDir string) {
 	if hidden > 0 {
 		fmt.Println(color.GreenString(fmt.Sprintf("%d repos with nothing to report\n", hidden)))
 	}
-}
-
-// Helpers
-func boolP(b bool) *bool {
-	return &b
-}
-
-func stringP(b string) *string {
-	return &b
 }
