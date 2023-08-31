@@ -3,14 +3,12 @@ package main
 import (
 	"bytes"
 	"fmt"
-	"os"
 	"os/exec"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/cheggaaa/pb/v3"
-	"github.com/fatih/color"
 )
 
 // gitDiff gets the number of modified files
@@ -87,10 +85,10 @@ func gitPull(row rowItem, bar *pb.ProgressBar) (bool, error) {
 	if string(b) == "Already up to date." {
 		return false, nil
 	}
-	if strings.HasPrefix(string(b), "ssh:") {
-		bar.Finish()
-		fmt.Println(color.RedString(string(b)))
-		os.Exit(0)
-	}
+	//if strings.HasPrefix(string(b), "ssh:") {
+	//	bar.Finish()
+	//	fmt.Println(color.RedString(string(b)))
+	//	os.Exit(0)
+	//}
 	return strings.Contains(string(b), "changed"), nil
 }
