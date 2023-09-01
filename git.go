@@ -14,7 +14,7 @@ import (
 // gitDiff gets the number of modified files
 func gitDiff(path string) (string, error) {
 
-	cmd := fmt.Sprintf(`git -C %s diff --stat || tail -n1`, path)
+	cmd := fmt.Sprintf(`git -C %s diff --stat`, path)
 
 	b, err := exec.Command("zsh", "-c", cmd).Output()
 	if err != nil {
@@ -22,6 +22,7 @@ func gitDiff(path string) (string, error) {
 	}
 
 	b = bytes.TrimSpace(b)
+	b = lastLine(b)
 
 	if len(b) == 0 {
 		return "", nil
@@ -75,13 +76,16 @@ func gitLog(path string) (*time.Time, error) {
 // gitPull returns if any files were pulled down
 func gitPull(row rowItem, bar *pb.ProgressBar) (bool, error) {
 
-	cmd := fmt.Sprintf(`git -C %s pull || tail -n1`, row.path)
+	cmd := fmt.Sprintf(`git -C %s pull`, row.path)
 
 	b, err := exec.Command("zsh", "-c", cmd).Output()
-	b = bytes.TrimSpace(b)
 	if err != nil {
 		return false, err
 	}
+
+	b = bytes.TrimSpace(b)
+	b = lastLine(b)
+
 	if string(b) == "Already up to date." {
 		return false, nil
 	}
