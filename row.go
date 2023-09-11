@@ -10,6 +10,7 @@ type rowItem struct {
 	changedFiles string     // Modified files
 	updated      bool       // If something was pulled down
 	lastCommit   *time.Time //
+	error        error      //
 }
 
 func (r rowItem) show() bool {

@@ -9,12 +9,12 @@ import (
 	"path"
 	"sort"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/cheggaaa/pb/v3"
 	"github.com/fatih/color"
 	"github.com/jedib0t/go-pretty/v6/table"
+	"golang.org/x/sync/errgroup"
 )
 
 const (
@@ -145,8 +145,6 @@ func filterReposByFilterFlag(repos []repoItem) (ret []repoItem) {
 	return ret
 }
 
-const maxConcurrent = 10
-
 func pullRepos(repos []repoItem) (ret []rowItem) {
 
 	// Run large repos first so you are not waiting on them at the end
@@ -163,48 +161,41 @@ func pullRepos(repos []repoItem) (ret []rowItem) {
 		bar.Start()
 	}
 
-	var guard = make(chan struct{}, maxConcurrent)
-	var wg sync.WaitGroup
+	wg := errgroup.Group{}
+	wg.SetLimit(10)
 
 	for _, r := range repos {
 
-		wg.Add(1)
-		guard <- struct{}{}
+		wg.Go(func() error {
 
-		go func(ri repoItem) {
-
-			defer func() {
-				bar.Increment()
-				wg.Done()
-				<-guard
-			}()
+			defer bar.Increment()
 
 			if *flagVerbose {
-				log.Printf(ri.path + " started")
+				log.Printf(r.path + " started")
 			}
 
 			// Make row
-			row := rowItem{path: ri.path}
+			row := rowItem{path: r.path}
 
 			var err error
 
-			row.changedFiles, err = gitDiff(ri.path)
+			row.changedFiles, err = gitDiff(r.path)
 			if err != nil {
-				log.Println(err)
-				return
+				row.error = err
+				return nil
 			}
 
-			row.branch, err = gitBranch(ri.path)
+			row.branch, err = gitBranch(r.path)
 			if err != nil {
-				log.Println(err)
-				return
+				row.error = err
+				return nil
 			}
 
 			if *flagStale {
-				row.lastCommit, err = gitLog(ri.path)
+				row.lastCommit, err = gitLog(r.path)
 				if err != nil {
-					log.Println(err)
-					return
+					row.error = err
+					return nil
 				}
 			}
 
@@ -212,16 +203,19 @@ func pullRepos(repos []repoItem) (ret []rowItem) {
 			if *flagPull && !row.isDirty() {
 				row.updated, err = gitPull(row, bar)
 				if err != nil {
-					log.Println(err)
-					return
+					row.error = err
+					return nil
 				}
 			}
 
 			ret = append(ret, row)
-		}(r)
+
+			return nil
+		})
 	}
 
-	wg.Wait()
+	_ = wg.Wait()
+
 	bar.Finish()
 
 	return ret
@@ -237,12 +231,23 @@ func outputTable(rows []rowItem, baseDir string) {
 		}
 	})
 
+	var hasErrors bool
+	for _, v := range rows {
+		if v.error != nil {
+			hasErrors = true
+			break
+		}
+	}
+
 	header := table.Row{"Repo", "Branch", "Modified"}
 	if *flagPull {
 		header = append(header, "Pull")
 	}
 	if *flagStale {
 		header = append(header, "Stale")
+	}
+	if hasErrors {
+		header = append(header, "Error")
 	}
 
 	tab := table.NewWriter()
@@ -298,6 +303,10 @@ func outputTable(rows []rowItem, baseDir string) {
 				}
 
 				tr = append(tr, modified)
+			}
+
+			if hasErrors && row.error != nil {
+				tr = append(tr, row.error.Error())
 			}
 
 			tab.AppendRow(tr)
