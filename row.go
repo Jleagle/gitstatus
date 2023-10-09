@@ -14,7 +14,7 @@ type rowItem struct {
 }
 
 func (r rowItem) show() bool {
-	return *flagShowAll || !r.isMain() || r.isDirty() || r.updated
+	return *flagShowAll || !r.isMain() || r.isDirty() || r.updated || (r.error != nil)
 }
 
 func (r rowItem) isMain() bool {
