@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"os/exec"
 	"strconv"
@@ -79,7 +80,11 @@ func gitPull(row rowItem, bar *pb.ProgressBar) (bool, error) {
 	cmd := fmt.Sprintf(`git -C %s pull`, row.path)
 
 	b, err := exec.Command("zsh", "-c", cmd).Output()
-	if err != nil {
+
+	var exitError *exec.ExitError
+	if errors.As(err, &exitError) {
+		return false, errors.New(string(firstLine(exitError.Stderr)))
+	} else if err != nil {
 		return false, err
 	}
 
