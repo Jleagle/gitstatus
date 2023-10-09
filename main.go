@@ -145,7 +145,7 @@ func filterReposByFilterFlag(repos []repoItem) (ret []repoItem) {
 	return ret
 }
 
-func pullRepos(repos []repoItem) (ret []rowItem) {
+func pullRepos(repos []repoItem) (rows []rowItem) {
 
 	// Run large repos first so you are not waiting on them at the end
 	sort.Slice(repos, func(i, j int) bool {
@@ -176,6 +176,10 @@ func pullRepos(repos []repoItem) (ret []rowItem) {
 
 			// Make row
 			row := rowItem{path: r.path}
+
+			defer func() {
+				rows = append(rows, row)
+			}()
 
 			var err error
 
@@ -208,8 +212,6 @@ func pullRepos(repos []repoItem) (ret []rowItem) {
 				}
 			}
 
-			ret = append(ret, row)
-
 			return nil
 		})
 	}
@@ -218,7 +220,7 @@ func pullRepos(repos []repoItem) (ret []rowItem) {
 
 	bar.Finish()
 
-	return ret
+	return rows
 }
 
 func outputTable(rows []rowItem, baseDir string) {
