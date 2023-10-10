@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
+	"path"
 	"strconv"
 	"strings"
 	"time"
@@ -38,16 +40,17 @@ func gitDiff(path string) (string, error) {
 }
 
 // gitBranch gets the branch name
-func gitBranch(path string) (string, error) {
+func gitBranch(pathx string) (string, error) {
 
-	cmd := fmt.Sprintf(`git -C %s branch --show-current`, path)
-
-	b, err := exec.Command("zsh", "-c", cmd).Output()
+	data, err := os.ReadFile(path.Join(pathx, ".git/HEAD"))
 	if err != nil {
 		return "", err
 	}
 
-	return string(bytes.TrimSpace(b)), nil
+	data = bytes.TrimSpace(data)
+	data = bytes.TrimPrefix(data, []byte("ref: refs/heads/"))
+
+	return string(data), nil
 }
 
 const staleDays = 180 // Days
