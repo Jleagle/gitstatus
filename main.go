@@ -166,6 +166,8 @@ func pullRepos(repos []repoItem) (rows []rowItem) {
 
 	for _, r := range repos {
 
+		r := r
+
 		wg.Go(func() error {
 
 			defer bar.Increment()
