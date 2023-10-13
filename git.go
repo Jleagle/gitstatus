@@ -86,13 +86,13 @@ func gitPull(row rowItem, bar *pb.ProgressBar) (bool, error) {
 
 	var exitError *exec.ExitError
 	if errors.As(err, &exitError) {
-		return false, errors.New(string(firstLine(exitError.Stderr)))
+		return false, errors.New(string(exitError.Stderr))
 	} else if err != nil {
 		return false, err
 	}
 
 	b = bytes.TrimSpace(b)
-	b = lastLine(b)
+	//b = lastLine(b)
 
 	if string(b) == "Already up to date." {
 		return false, nil
