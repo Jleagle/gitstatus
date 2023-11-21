@@ -207,7 +207,7 @@ func pullRepos(repos []repoItem) (rows []rowItem) {
 
 			// Pull
 			if *flagPull && !row.isDirty() {
-				row.updated, err = gitPull(row, bar)
+				row.updated, err = gitPull(row)
 				if err != nil {
 					row.error = err
 					return nil

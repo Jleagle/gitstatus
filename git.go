@@ -10,8 +10,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/cheggaaa/pb/v3"
 )
 
 // gitDiff gets the number of modified files
@@ -78,7 +76,7 @@ func gitLog(path string) (*time.Time, error) {
 }
 
 // gitPull returns if any files were pulled down
-func gitPull(row rowItem, bar *pb.ProgressBar) (bool, error) {
+func gitPull(row rowItem) (bool, error) {
 
 	cmd := fmt.Sprintf(`git -C %s pull`, row.path)
 
