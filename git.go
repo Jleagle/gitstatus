@@ -92,8 +92,11 @@ func gitPull(row rowItem, bar *pb.ProgressBar) (bool, error) {
 	}
 
 	b = bytes.TrimSpace(b)
-	//b = lastLine(b)
 
+	if strings.Contains(string(b), "but no such ref was fetched") {
+		//goland:noinspection GoErrorStringFormat
+		return false, errors.New("Remote branch does not exist")
+	}
 	if string(b) == "Already up to date." {
 		return false, nil
 	}
