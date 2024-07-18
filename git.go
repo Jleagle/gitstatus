@@ -51,8 +51,6 @@ func gitBranch(pathx string) (string, error) {
 	return string(data), nil
 }
 
-const staleDays = 180 // Days
-
 // gitLog gets the time of the latest commit
 func gitLog(path string) (*time.Time, error) {
 

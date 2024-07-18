@@ -34,5 +34,5 @@ func (r rowItem) daysStale() int {
 }
 
 func (r rowItem) isStale() bool {
-	return r.daysStale() > staleDays
+	return r.daysStale() > 180
 }
