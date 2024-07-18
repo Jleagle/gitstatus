@@ -2,7 +2,7 @@
 
 ### To Install
 
-`go install github.com/Jleagle/gitstatus`
+`go install github.com/Jleagle/gitstatus@latest`
 
 ### To Update
 
