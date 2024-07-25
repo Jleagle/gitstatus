@@ -308,8 +308,12 @@ func outputTable(rows []rowItem, baseDir string) {
 				tr = append(tr, modified)
 			}
 
-			if hasErrors && row.error != nil {
-				tr = append(tr, row.error.Error())
+			if hasErrors {
+				if row.error != nil {
+					tr = append(tr, row.error.Error())
+				} else {
+					tr = append(tr, "")
+				}
 			}
 
 			tab.AppendRow(tr)
