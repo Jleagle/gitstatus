@@ -217,7 +217,10 @@ func pullRepos(repos []repoItem) (rows []rowItem) {
 		})
 	}
 
-	_ = wg.Wait()
+	err := wg.Wait()
+	if err != nil {
+		log.Println(err)
+	}
 
 	bar.Finish()
 
