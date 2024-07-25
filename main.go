@@ -43,7 +43,17 @@ type repoItem struct {
 func main() {
 
 	flag.Parse()
-	readEnvs()
+
+	// Set flags from env
+	if os.Getenv(envStale) != "" {
+		flagStale = boolP(true)
+	}
+	if os.Getenv(envFull) != "" {
+		flagFull = boolP(true)
+	}
+	if d := os.Getenv(envDir); d != "" {
+		flagDir = stringP(d)
+	}
 
 	// Install the latest version and exit
 	if *flagUpdate {
@@ -81,19 +91,6 @@ func main() {
 
 	// Show a table of results
 	outputTable(rows, baseDir)
-}
-
-func readEnvs() {
-
-	if os.Getenv(envStale) != "" {
-		flagStale = boolP(true)
-	}
-	if os.Getenv(envFull) != "" {
-		flagFull = boolP(true)
-	}
-	if d := os.Getenv(envDir); d != "" {
-		flagDir = stringP(d)
-	}
 }
 
 func scanAllDirs(dir string, depth int) (ret []repoItem) {
