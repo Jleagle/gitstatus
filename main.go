@@ -24,14 +24,15 @@ const (
 )
 
 var (
-	flagDir     = flag.String("dir", "", "Directory to scan")
-	flagFilter  = flag.String("filter", "", "Filter repos, comma delimited")
-	flagFull    = flag.Bool("full", false, "Show the full repo path")
-	flagPull    = flag.Bool("pull", false, "Pull repos")
-	flagShowAll = flag.Bool("all", false, "Show all repos, even if no changes")
-	flagStale   = flag.Bool("stale", false, "Always show stale")
-	flagUpdate  = flag.Bool("update", false, "Update this app before running")
-	flagVerbose = flag.Bool("v", false, "Log slow repos")
+	flagDir      = flag.String("dir", "", "Directory to scan")
+	flagFilter   = flag.String("filter", "", "Filter repos, comma delimited")
+	flagMaxDepth = flag.Int("depth", 2, "Max nested depth to scan for")
+	flagFull     = flag.Bool("full", false, "Show the full repo path")
+	flagPull     = flag.Bool("pull", false, "Pull repos")
+	flagShowAll  = flag.Bool("all", false, "Show all repos, even if no changes")
+	flagStale    = flag.Bool("stale", false, "Always show stale")
+	flagUpdate   = flag.Bool("update", false, "Update this app before running")
+	flagVerbose  = flag.Bool("v", false, "Log slow repos")
 )
 
 type repoItem struct {
@@ -95,11 +96,9 @@ func readEnvs() {
 	}
 }
 
-const maxDepth = 2
-
 func scanAllDirs(dir string, depth int) (ret []repoItem) {
 
-	if depth > maxDepth {
+	if depth > *flagMaxDepth {
 		return nil
 	}
 
