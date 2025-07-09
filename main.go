@@ -28,7 +28,6 @@ var (
 	flagPull     = flag.Bool("pull", false, "Pull repos")
 	flagShowAll  = flag.Bool("all", false, "Show all repos, even if no changes")
 	flagUpdate   = flag.Bool("update", false, "Update this app before running")
-	flagVerbose  = flag.Bool("v", false, "Log slow repos")
 )
 
 type repoItem struct {
@@ -146,9 +145,7 @@ func pullRepos(repos []repoItem) (rows []rowItem) {
 	bar.SetRefreshRate(time.Millisecond * 200)
 	bar.SetWriter(os.Stdout)
 	bar.SetWidth(100)
-	if !*flagVerbose {
-		bar.Start()
-	}
+	bar.Start()
 
 	wg := errgroup.Group{}
 	wg.SetLimit(10)
@@ -160,10 +157,6 @@ func pullRepos(repos []repoItem) (rows []rowItem) {
 		wg.Go(func() error {
 
 			defer bar.Increment()
-
-			if *flagVerbose {
-				log.Printf(r.path + " started")
-			}
 
 			// Make row
 			row := rowItem{path: r.path}
