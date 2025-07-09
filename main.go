@@ -17,11 +17,8 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-const (
-	envDir   = "GITSTATUS_DIR"
-	envFull  = "GITSTATUS_FULL"
-	envStale = "GITSTATUS_STALE"
-)
+const envDir = "GITSTATUS_DIR"
+const envFull = "GITSTATUS_FULL"
 
 var (
 	flagDir      = flag.String("dir", "", "Directory to scan")
@@ -30,7 +27,6 @@ var (
 	flagFull     = flag.Bool("full", false, "Show the full repo path")
 	flagPull     = flag.Bool("pull", false, "Pull repos")
 	flagShowAll  = flag.Bool("all", false, "Show all repos, even if no changes")
-	flagStale    = flag.Bool("stale", false, "Always show stale")
 	flagUpdate   = flag.Bool("update", false, "Update this app before running")
 	flagVerbose  = flag.Bool("v", false, "Log slow repos")
 )
@@ -45,9 +41,6 @@ func main() {
 	flag.Parse()
 
 	// Set flags from env
-	if os.Getenv(envStale) != "" {
-		flagStale = boolP(true)
-	}
 	if os.Getenv(envFull) != "" {
 		flagFull = boolP(true)
 	}
@@ -193,14 +186,6 @@ func pullRepos(repos []repoItem) (rows []rowItem) {
 				return nil
 			}
 
-			if *flagStale {
-				row.lastCommit, err = gitLog(r.path)
-				if err != nil {
-					row.error = err
-					return nil
-				}
-			}
-
 			// Pull
 			if *flagPull && !row.isDirty() {
 				row.updated, err = gitPull(row)
@@ -227,11 +212,7 @@ func pullRepos(repos []repoItem) (rows []rowItem) {
 func outputTable(rows []rowItem, baseDir string) {
 
 	sort.Slice(rows, func(i, j int) bool {
-		if *flagStale {
-			return rows[i].lastCommit.Unix() < rows[j].lastCommit.Unix()
-		} else {
-			return strings.ToLower(rows[i].path) < strings.ToLower(rows[j].path)
-		}
+		return strings.ToLower(rows[i].path) < strings.ToLower(rows[j].path)
 	})
 
 	var hasErrors bool
@@ -245,9 +226,6 @@ func outputTable(rows []rowItem, baseDir string) {
 	header := table.Row{"Repo", "Branch", "Modified"}
 	if *flagPull {
 		header = append(header, "Pull")
-	}
-	if *flagStale {
-		header = append(header, "Stale")
 	}
 	if hasErrors {
 		header = append(header, "Error")
@@ -295,17 +273,6 @@ func outputTable(rows []rowItem, baseDir string) {
 				}
 
 				tr = append(tr, action)
-			}
-
-			if *flagStale {
-
-				// Format modified files
-				modified := fmt.Sprintf("%d days", row.daysStale())
-				if row.isStale() {
-					modified = color.RedString(modified)
-				}
-
-				tr = append(tr, modified)
 			}
 
 			if hasErrors {
