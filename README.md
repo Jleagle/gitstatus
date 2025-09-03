@@ -18,6 +18,8 @@ Scans `/users/user/code` by default, falls back to `os.Getenv("GITSTATUS_DIR")`,
 
 ### ENV
 
+```
 GITSTATUS_DIR="/Users/jleagle/code"
 GITSTATUS_FULL="true"
 GITSTATUS_STALE="true"
+```
