@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"os/exec"
 	"path"
 	"sort"
 	"strings"
@@ -27,7 +26,6 @@ var (
 	flagFull     = flag.Bool("full", false, "Show the full repo path")
 	flagPull     = flag.Bool("pull", false, "Pull repos")
 	flagShowAll  = flag.Bool("all", false, "Show all repos, even if no changes")
-	flagUpdate   = flag.Bool("update", false, "Update this app before running")
 )
 
 type repoItem struct {
@@ -45,17 +43,6 @@ func main() {
 	}
 	if d := os.Getenv(envDir); d != "" {
 		flagDir = stringP(d)
-	}
-
-	// Install the latest version and exit
-	if *flagUpdate {
-		_, err := exec.Command("go", "install", "github.com/Jleagle/gitstatus@latest").Output()
-		if err != nil {
-			log.Println(err)
-		} else {
-			fmt.Println("App Updated")
-		}
-		return
 	}
 
 	// Get the base code dir
