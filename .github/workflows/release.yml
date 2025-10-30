@@ -8,13 +8,16 @@ on:
       # Trigger on any tag starting with 'v' (e.g., v1.0.0)
       - 'v*'
 
+permissions:
+  contents: write
+
 jobs:
   goreleaser:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
-          # Fetch all history for GoReleaser to work correctly
           fetch-depth: 0
 
       - name: Set up Go
@@ -23,7 +26,7 @@ jobs:
           go-version: 'stable'
 
       - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v5
+        uses: goreleaser/goreleaser-action@v6
         with:
           # This tells GoReleaser to use the config and perform the release
           distribution: goreleaser
