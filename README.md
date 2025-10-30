@@ -2,11 +2,10 @@
 
 ### To Install
 
-`go install github.com/Jleagle/gitstatus@latest`
-
-### To Update
-
-`gitstatus -update`
+```
+brew tap Jleagle/gitstatus
+brew install gitstatus
+```
 
 ### To Run
 
@@ -16,7 +15,7 @@
 
 Scans `/users/user/code` by default, falls back to `os.Getenv("GITSTATUS_DIR")`, `gitstatus -dir /codedir` to override.
 
-### ENV
+### ENVs
 
 ```
 GITSTATUS_DIR="/Users/jleagle/code"
