@@ -1,0 +1,36 @@
+# .github/workflows/release.yml (in jleagle/gitstatus repo)
+
+name: Release
+
+on:
+  push:
+    tags:
+      # Trigger on any tag starting with 'v' (e.g., v1.0.0)
+      - 'v*'
+
+jobs:
+  goreleaser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Fetch all history for GoReleaser to work correctly
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v5
+        with:
+          # This tells GoReleaser to use the config and perform the release
+          distribution: goreleaser
+          version: latest
+          args: release --clean
+        env:
+          # Standard token provided by GitHub Actions for the main repo release
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # This is the token that GoReleaser will use to update the *Homebrew Tap* repo
+          HOMEBREW_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}

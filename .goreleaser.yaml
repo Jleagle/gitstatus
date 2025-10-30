@@ -1,0 +1,19 @@
+brews:
+  - name: gitstatus
+    repository:
+      owner: Jleagle
+      name: homebrew-gitstatus
+      # This token must have 'write' access to the homebrew-gitstatus repository.
+      # It will be provided by GitHub Actions (see step 3).
+      token: '{{ .Env.HOMEBREW_GITHUB_TOKEN }}'
+
+    # The binary name used in the formula's `install` block
+    # This must match what you are installing in your original formula
+    # If your main function is in ./cmd/gitstatus, this should be the name of the resulting binary
+    binary: gitstatus
+
+    # The custom install block specific to Go projects
+    # This section ensures the formula generated uses the Go install logic
+    install: |
+      # Use the same Go install command as in your manual formula
+      system "go", "build", *std_go_args(ldflags: "-s -w"), "./"
