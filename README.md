@@ -2,10 +2,7 @@
 
 ### To Install
 
-```
-brew tap Jleagle/gitstatus
-brew install gitstatus
-```
+`brew install Jleagle/gitstatus/gitstatus`
 
 ### To Run
 
