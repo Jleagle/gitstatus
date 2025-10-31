@@ -1,6 +1,12 @@
 version: 2
 homebrew_casks:
   - name: "gitstatus"
+    hooks:
+      post:
+        install: |
+          if OS.mac?
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/gitstatus"]
+          end
     repository:
       owner: "Jleagle"
       name: "homebrew-gitstatus"
