@@ -3,10 +3,6 @@ homebrew_casks:
 
   - name: "gitstatus"
 
-    alternative_names:
-      - "gitstatus@{{ .Version }}"
-      - "gitstatus@{{ .Major }}"
-
     binaries:
       - "gitstatus"
 
