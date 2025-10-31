@@ -1,3 +1,4 @@
+version: 2
 homebrew_casks:
 
   - name: "gitstatus"
