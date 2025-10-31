@@ -10,12 +10,13 @@
 
 ### Code Directory
 
-Scans `/users/user/code` by default, falls back to `os.Getenv("GITSTATUS_DIR")`, `gitstatus -dir /codedir` to override.
+Looks in `gitstatus -dir /dir`, then
+`os.Getenv("GITSTATUS_DIR")`, then
+`/users/user/code`
 
 ### ENVs
 
 ```
 GITSTATUS_DIR="/Users/jleagle/code"
 GITSTATUS_FULL="true"
-GITSTATUS_STALE="true"
 ```
