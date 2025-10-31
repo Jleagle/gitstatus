@@ -1,19 +1,43 @@
-brews:
-  - name: gitstatus
+homebrew_casks:
+
+  - name: "gitstatus"
+
+    alternative_names:
+      - "gitstatus@{{ .Version }}"
+      - "gitstatus@{{ .Major }}"
+
+    binaries:
+      - "gitstatus"
+
+    url:
+      template: "https://github.com/Jleagle/gitstatus/archive/refs/tags/{{ .Tag }}.zip"
+
+    commit_msg_template: "Brew cask update for {{ .ProjectName }} version {{ .Tag }}"
+
+    directory: "Formula"
+
+    homepage: "https://github.com/Jleagle/gitstatus"
+
+    skip_upload: false
+
+    dependencies:
+      - formula: "go"
+
+    uninstall:
+      trash:
+        - "~/go/bin/gitstatus"
+
     repository:
-      owner: Jleagle
-      name: homebrew-gitstatus
-      # This token must have 'write' access to the homebrew-gitstatus repository.
-      # It will be provided by GitHub Actions (see step 3).
-      token: '{{ .Env.HOMEBREW_GITHUB_TOKEN }}'
+      owner: "Jleagle"
+      name: "homebrew-gitstatus"
+      branch: "main"
+      token: "{{ .Env.HOMEBREW_GITHUB_TOKEN }}"
+      pull_request:
+        enabled: true
+        draft: false
 
-    # The binary name used in the formula's `install` block
-    # This must match what you are installing in your original formula
-    # If your main function is in ./cmd/gitstatus, this should be the name of the resulting binary
-    binary: gitstatus
-
-    # The custom install block specific to Go projects
-    # This section ensures the formula generated uses the Go install logic
-    install: |
-      # Use the same Go install command as in your manual formula
-      system "go", "build", *std_go_args(ldflags: "-s -w"), "./"
+    commit_author:
+      name: "goreleaserbot"
+      email: "bot@goreleaser.com"
+      signing:
+        enabled: false
