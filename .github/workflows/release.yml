@@ -1,5 +1,3 @@
-# .github/workflows/release.yml (in jleagle/gitstatus repo)
-
 name: Release
 
 on:
@@ -16,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -28,12 +26,9 @@ jobs:
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v6
         with:
-          # This tells GoReleaser to use the config and perform the release
           distribution: goreleaser
           version: latest
           args: release --clean
         env:
-          # Standard token provided by GitHub Actions for the main repo release
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # This is the token that GoReleaser will use to update the *Homebrew Tap* repo
           HOMEBREW_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
