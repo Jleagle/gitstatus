@@ -25,7 +25,7 @@ var (
 	flagMaxDepth = flag.Int("depth", 2, "Max nested depth to scan for")
 	flagFull     = flag.Bool("full", false, "Show the full repo path")
 	flagPull     = flag.Bool("pull", false, "Pull repos")
-	flagShowAll  = flag.Bool("all", false, "Show all repos, even if no changes")
+	flagAll      = flag.Bool("all", false, "Show all repos, even if no changes")
 )
 
 type repoItem struct {
