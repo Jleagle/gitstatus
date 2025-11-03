@@ -276,6 +276,6 @@ func outputTable(rows []rowItem, baseDir string) {
 	}
 
 	if hidden > 0 {
-		fmt.Println(color.GreenString(fmt.Sprintf("%d repos with nothing to report, use -all to show them\n", hidden)))
+		fmt.Println(color.BlueString(fmt.Sprintf("%d repos with nothing to report, use -all to show them\n", hidden)))
 	}
 }
