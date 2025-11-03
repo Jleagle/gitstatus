@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"flag"
 	"fmt"
 	"log"
@@ -49,10 +50,7 @@ func main() {
 	}
 
 	// Get the base code dir
-	baseDir := *flagDir
-	if baseDir == "" {
-		baseDir = "/users/" + os.Getenv("USER") + "/code"
-	}
+	baseDir := cmp.Or(*flagDir, "/users/"+os.Getenv("USER")+"/code")
 
 	// Get a list of every repo
 	repos := scanAllDirs(baseDir, 1)
