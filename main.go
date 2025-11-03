@@ -7,6 +7,7 @@ import (
 	"os"
 	"path"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -16,14 +17,16 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-const envDir = "GITSTATUS_DIR"
-const envFull = "GITSTATUS_FULL"
+const (
+	envDir   = "GITSTATUS_DIR"
+	envShort = "GITSTATUS_SHORT"
+)
 
 var (
 	flagDir      = flag.String("dir", "", "Directory to scan")
 	flagFilter   = flag.String("filter", "", "Filter repos, comma delimited")
 	flagMaxDepth = flag.Int("depth", 2, "Max nested depth to scan for")
-	flagFull     = flag.Bool("full", false, "Show the full repo path")
+	flagShort    = flag.Bool("short", false, "Shorten paths")
 	flagPull     = flag.Bool("pull", false, "Pull repos")
 	flagAll      = flag.Bool("all", false, "Show all repos, even if no changes")
 )
@@ -38,8 +41,8 @@ func main() {
 	flag.Parse()
 
 	// Set flags from env
-	if os.Getenv(envFull) != "" {
-		flagFull = boolP(true)
+	if vv, err := strconv.ParseBool(os.Getenv(envShort)); err == nil {
+		flagShort = boolP(vv)
 	}
 	if d := os.Getenv(envDir); d != "" {
 		flagDir = stringP(d)
@@ -223,7 +226,7 @@ func outputTable(rows []rowItem, baseDir string) {
 		if row.show() {
 
 			// Format path
-			if !*flagFull {
+			if *flagShort {
 				row.path = strings.TrimPrefix(row.path, baseDir)
 			}
 
