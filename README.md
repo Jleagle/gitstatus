@@ -1,22 +1,21 @@
 # gitstatus
 
-### To Install
+### Install
 
 `brew install Jleagle/gitstatus/gitstatus`
 
-### To Run
-
-`gitstatus` defaults to dry run, `gitstatus -pull` to pull repos.
-
-### Code Directory
-
-Looks in `gitstatus -dir /dir`, then
-`os.Getenv("GITSTATUS_DIR")`, then
-`/users/user/code`
-
-### ENVs
+### Help
 
 ```
-GITSTATUS_DIR="/Users/jleagle/code"
-GITSTATUS_FULL="true"
+Usage:
+  gitstatus [flags]
+
+Flags:
+  -a, --all             Show all Repos
+  -d, --dir string      Directory
+  -f, --filter string   Filter
+  -h, --help            help for gitstatus
+  -m, --maxdepth int    Max Depth (default 2)
+  -p, --pull            Pull Repos
+  -s, --short           Short Paths
 ```
