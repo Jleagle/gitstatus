@@ -2,6 +2,8 @@ package main
 
 import (
 	"time"
+
+	"github.com/spf13/viper"
 )
 
 type rowItem struct {
@@ -14,7 +16,7 @@ type rowItem struct {
 }
 
 func (r rowItem) show() bool {
-	return *flagAll || !r.isMain() || r.isDirty() || r.updated || (r.error != nil)
+	return viper.GetBool(fAll) || !r.isMain() || r.isDirty() || r.updated || (r.error != nil)
 }
 
 func (r rowItem) isMain() bool {

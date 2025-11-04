@@ -2,80 +2,107 @@ package main
 
 import (
 	"cmp"
-	"flag"
 	"fmt"
 	"log"
 	"os"
 	"path"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/cheggaaa/pb/v3"
 	"github.com/fatih/color"
 	"github.com/jedib0t/go-pretty/v6/table"
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 	"golang.org/x/sync/errgroup"
 )
 
 const (
-	envDir   = "GITSTATUS_DIR"
-	envShort = "GITSTATUS_SHORT"
+	fDir      = "dir"
+	fFilter   = "filter"
+	fMaxdepth = "maxdepth"
+	fShort    = "short"
+	fPull     = "pull"
+	fAll      = "all"
 )
 
-var (
-	flagDir      = flag.String("dir", "", "Directory to scan")
-	flagFilter   = flag.String("filter", "", "Filter repos, comma delimited")
-	flagMaxDepth = flag.Int("depth", 2, "Max nested depth to scan for")
-	flagShort    = flag.Bool("short", false, "Shorten paths")
-	flagPull     = flag.Bool("pull", false, "Pull repos")
-	flagAll      = flag.Bool("all", false, "Show all repos, even if no changes")
-)
+var flagDir string
+var flagFilter string
+var flagMaxDepth int
+var flagShort bool
+var flagPull bool
+var flagAll bool
+
+func init() {
+
+	cmd.Flags().StringVarP(&flagDir, fDir, "d", "", "Directory")
+	cmd.Flags().StringVarP(&flagFilter, fFilter, "f", "", "Filter")
+	cmd.Flags().IntVarP(&flagMaxDepth, fMaxdepth, "m", 2, "Max Depth")
+	cmd.Flags().BoolVarP(&flagShort, fShort, "s", false, "Short Paths")
+	cmd.Flags().BoolVarP(&flagPull, fPull, "p", false, "Pull Repos")
+	cmd.Flags().BoolVarP(&flagAll, fAll, "a", false, "Show all Repos")
+
+	cobra.OnInitialize(func() {
+
+		viper.SetEnvPrefix("GITSTATUS")
+		viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
+		viper.AutomaticEnv()
+
+		_ = viper.BindPFlag(fDir, cmd.Flags().Lookup(fDir))
+		_ = viper.BindPFlag(fFilter, cmd.Flags().Lookup(fFilter))
+		_ = viper.BindPFlag(fMaxdepth, cmd.Flags().Lookup(fMaxdepth))
+		_ = viper.BindPFlag(fShort, cmd.Flags().Lookup(fShort))
+		_ = viper.BindPFlag(fPull, cmd.Flags().Lookup(fPull))
+		_ = viper.BindPFlag(fAll, cmd.Flags().Lookup(fAll))
+	})
+}
+
+func main() {
+	if err := cmd.Execute(); err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+}
+
+var cmd = &cobra.Command{
+	Use:  "gitstatus",
+	Args: cobra.NoArgs,
+	Run: func(cmd *cobra.Command, args []string) {
+
+		// Get the base code dir
+		baseDir := cmp.Or(viper.GetString(fDir), "/users/"+os.Getenv("USER")+"/code")
+
+		// Get a list of every repo
+		repos := scanAllDirs(baseDir, 1)
+		if len(repos) == 0 {
+			fmt.Println(baseDir + " does not contain any repos")
+			return
+		}
+
+		// Filter by filter flag
+		repos = filterReposByFilterFlag(repos)
+		if len(repos) == 0 {
+			fmt.Println("No repos match your directory & filter")
+			return
+		}
+
+		// Pull repos with a loading bar
+		rows := pullRepos(repos)
+
+		// Show a table of results
+		outputTable(rows, baseDir)
+	},
+}
 
 type repoItem struct {
 	path string
 	size int64
 }
 
-func main() {
-
-	flag.Parse()
-
-	// Set flags from env
-	if vv, err := strconv.ParseBool(os.Getenv(envShort)); err == nil {
-		flagShort = boolP(vv)
-	}
-	if d := os.Getenv(envDir); d != "" {
-		flagDir = stringP(d)
-	}
-
-	// Get the base code dir
-	baseDir := cmp.Or(*flagDir, "/users/"+os.Getenv("USER")+"/code")
-
-	// Get a list of every repo
-	repos := scanAllDirs(baseDir, 1)
-	if len(repos) == 0 {
-		fmt.Println(baseDir + " does not contain any repos")
-		return
-	}
-
-	// Filter by filter flag
-	repos = filterReposByFilterFlag(repos)
-	if len(repos) == 0 {
-		fmt.Println("No repos match your directory & filter")
-		return
-	}
-
-	// Pull repos with a loading bar
-	rows := pullRepos(repos)
-
-	// Show a table of results
-	outputTable(rows, baseDir)
-}
-
 func scanAllDirs(dir string, depth int) (ret []repoItem) {
 
-	if depth > *flagMaxDepth {
+	if depth > viper.GetInt(fMaxdepth) {
 		return nil
 	}
 
@@ -104,11 +131,12 @@ func scanAllDirs(dir string, depth int) (ret []repoItem) {
 
 func filterReposByFilterFlag(repos []repoItem) (ret []repoItem) {
 
-	if *flagFilter == "" {
+	var filter = viper.GetString(fFilter)
+	if filter == "" {
 		return repos
 	}
 
-	pieces := strings.Split(*flagFilter, ",")
+	pieces := strings.Split(filter, ",")
 	for _, r := range repos {
 		for _, piece := range pieces {
 			if strings.Contains(strings.ToLower(r.path), strings.TrimSpace(strings.ToLower(piece))) {
@@ -168,7 +196,7 @@ func pullRepos(repos []repoItem) (rows []rowItem) {
 			}
 
 			// Pull
-			if *flagPull && !row.isDirty() {
+			if viper.GetBool(fPull) && !row.isDirty() {
 				row.updated, err = gitPull(row)
 				if err != nil {
 					row.error = err
@@ -205,7 +233,7 @@ func outputTable(rows []rowItem, baseDir string) {
 	}
 
 	header := table.Row{"Repo", "Branch", "Modified"}
-	if *flagPull {
+	if viper.GetBool(fPull) {
 		header = append(header, "Pull")
 	}
 	if hasErrors {
@@ -224,7 +252,7 @@ func outputTable(rows []rowItem, baseDir string) {
 		if row.show() {
 
 			// Format path
-			if *flagShort {
+			if viper.GetBool(fShort) {
 				row.path = strings.TrimPrefix(row.path, baseDir)
 			}
 
@@ -244,7 +272,7 @@ func outputTable(rows []rowItem, baseDir string) {
 			//
 			tr := table.Row{row.path, row.branch, row.changedFiles}
 
-			if *flagPull {
+			if viper.GetBool(fPull) {
 
 				var action = ""
 				if row.updated {
