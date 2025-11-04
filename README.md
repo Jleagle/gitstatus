@@ -10,12 +10,11 @@
 Usage:
   gitstatus [flags]
 
-Flags:
-  -a, --all             Show all Repos
-  -d, --dir string      Directory
-  -f, --filter string   Filter
-  -h, --help            help for gitstatus
-  -m, --maxdepth int    Max Depth (default 2)
-  -p, --pull            Pull Repos
-  -s, --short           Short Paths
+Flags:                                        ENV:
+  -a, --all             Show all Repos        GITSTATUS_ALL
+  -d, --dir string      Directory             GITSTATUS_DIR
+  -f, --filter string   Filter                GITSTATUS_FILTER
+  -m, --maxdepth int    Max Depth (default 2) GITSTATUS_MAXDEPTH
+  -p, --pull            Pull Repos            GITSTATUS_PULL
+  -s, --short           Short Paths           GITSTATUS_SHORT
 ```
