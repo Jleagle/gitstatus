@@ -137,13 +137,48 @@ func filterReposByFilterFlag(repos []repoItem) (ret []repoItem) {
 	}
 
 	pieces := strings.Split(filter, ",")
-	for _, r := range repos {
-		for _, piece := range pieces {
-			if strings.Contains(strings.ToLower(r.path), strings.TrimSpace(strings.ToLower(piece))) {
-				ret = append(ret, r)
+	var includes, excludes []string
+	for _, piece := range pieces {
+		piece = strings.TrimSpace(strings.ToLower(piece))
+		if strings.HasPrefix(piece, "!") {
+			excludes = append(excludes, piece)
+		} else {
+			includes = append(includes, piece)
+		}
+	}
+
+	for _, repo := range repos {
+
+		repoPath := strings.ToLower(repo.path)
+
+		// Check positives
+		if len(includes) > 0 {
+			matched := false
+			for _, v := range includes {
+				if v != "" && strings.Contains(repoPath, v) {
+					matched = true
+					break
+				}
+			}
+			if !matched {
+				continue
+			}
+		}
+
+		// Check negatives
+		excluded := false
+		for _, v := range excludes {
+			v = strings.TrimPrefix(v, "!")
+			if v != "!" && strings.Contains(repoPath, v) {
+				excluded = true
 				break
 			}
 		}
+		if excluded {
+			continue
+		}
+
+		ret = append(ret, repo)
 	}
 
 	return ret
