@@ -27,12 +27,21 @@ const (
 	fAll      = "all"
 )
 
-var flagDir string
-var flagFilter string
-var flagMaxDepth int
-var flagShort bool
-var flagPull bool
-var flagAll bool
+// These variables are set by goreleaser's ldflags
+var (
+	version = "dev"
+	commit  = "none"
+	date    = "unknown"
+)
+
+var (
+	flagDir      string
+	flagFilter   string
+	flagMaxDepth int
+	flagShort    bool
+	flagPull     bool
+	flagAll      bool
+)
 
 func init() {
 
