@@ -21,6 +21,7 @@ import (
 const (
 	fDir      = "dir"
 	fFilter   = "filter"
+	fVersion  = "version"
 	fMaxdepth = "maxdepth"
 	fShort    = "short"
 	fPull     = "pull"
@@ -37,6 +38,7 @@ var (
 var (
 	flagDir      string
 	flagFilter   string
+	flagVersion  bool
 	flagMaxDepth int
 	flagShort    bool
 	flagPull     bool
@@ -47,6 +49,7 @@ func init() {
 
 	cmd.Flags().StringVarP(&flagDir, fDir, "d", "", "Directory")
 	cmd.Flags().StringVarP(&flagFilter, fFilter, "f", "", "Filter")
+	cmd.Flags().BoolVarP(&flagVersion, fVersion, "v", false, "Version")
 	cmd.Flags().IntVarP(&flagMaxDepth, fMaxdepth, "m", 2, "Max Depth")
 	cmd.Flags().BoolVarP(&flagShort, fShort, "s", false, "Short Paths")
 	cmd.Flags().BoolVarP(&flagPull, fPull, "p", false, "Pull Repos")
@@ -60,6 +63,7 @@ func init() {
 
 		_ = viper.BindPFlag(fDir, cmd.Flags().Lookup(fDir))
 		_ = viper.BindPFlag(fFilter, cmd.Flags().Lookup(fFilter))
+		_ = viper.BindPFlag(fVersion, cmd.Flags().Lookup(fVersion))
 		_ = viper.BindPFlag(fMaxdepth, cmd.Flags().Lookup(fMaxdepth))
 		_ = viper.BindPFlag(fShort, cmd.Flags().Lookup(fShort))
 		_ = viper.BindPFlag(fPull, cmd.Flags().Lookup(fPull))
@@ -78,6 +82,13 @@ var cmd = &cobra.Command{
 	Use:  "gitstatus",
 	Args: cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
+
+		if viper.GetBool(fVersion) {
+			fmt.Println("Version: " + version)
+			fmt.Println("Commit: " + commit)
+			fmt.Println("Date: " + date)
+			return
+		}
 
 		// Get the base code dir
 		baseDir := cmp.Or(viper.GetString(fDir), "/users/"+os.Getenv("USER")+"/code")
