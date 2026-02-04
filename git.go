@@ -51,7 +51,7 @@ func gitBranch(pathx string) (string, error) {
 // gitLog gets the time of the latest commit
 func gitLog(repoPath string) (*time.Time, error) {
 
-	b, err := exec.Command("git", "-C", repoPath, "log", "-1", "--format=%%at").Output()
+	b, err := exec.Command("git", "-C", repoPath, "log", "-1", "--format=%at").Output()
 	if err != nil {
 		return nil, err
 	}
