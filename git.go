@@ -13,7 +13,7 @@ import (
 )
 
 // gitDiff gets the number of modified files
-func gitDiff(path string) (string, error) {
+func gitDiff(repoPath string) (string, error) {
 
 	cmd := fmt.Sprintf(`git -C %s diff --stat`, path)
 
@@ -52,7 +52,7 @@ func gitBranch(pathx string) (string, error) {
 }
 
 // gitLog gets the time of the latest commit
-func gitLog(path string) (*time.Time, error) {
+func gitLog(repoPath string) (*time.Time, error) {
 
 	cmd := fmt.Sprintf(`git -C %s log -1 --format="%%at"`, path)
 
