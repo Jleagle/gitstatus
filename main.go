@@ -8,6 +8,7 @@ import (
 	"path"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/cheggaaa/pb/v3"
@@ -221,6 +222,8 @@ func pullRepos(repos []repoItem) (rows []rowItem) {
 	wg := errgroup.Group{}
 	wg.SetLimit(10)
 
+	var mu sync.Mutex
+
 	for _, r := range repos {
 
 		wg.Go(func() error {
@@ -231,7 +234,9 @@ func pullRepos(repos []repoItem) (rows []rowItem) {
 			row := rowItem{path: r.path}
 
 			defer func() {
+				mu.Lock()
 				rows = append(rows, row)
+				mu.Unlock()
 			}()
 
 			var err error
