@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"errors"
-	"fmt"
 	"os"
 	"os/exec"
 	"path"
@@ -15,9 +14,7 @@ import (
 // gitDiff gets the number of modified files
 func gitDiff(repoPath string) (string, error) {
 
-	cmd := fmt.Sprintf(`git -C %s diff --stat`, path)
-
-	b, err := exec.Command("zsh", "-c", cmd).Output()
+	b, err := exec.Command("git", "-C", repoPath, "diff", "--stat").Output()
 	if err != nil {
 		return "", err
 	}
@@ -54,9 +51,7 @@ func gitBranch(pathx string) (string, error) {
 // gitLog gets the time of the latest commit
 func gitLog(repoPath string) (*time.Time, error) {
 
-	cmd := fmt.Sprintf(`git -C %s log -1 --format="%%at"`, path)
-
-	b, err := exec.Command("zsh", "-c", cmd).Output()
+	b, err := exec.Command("git", "-C", repoPath, "log", "-1", "--format=%%at").Output()
 	if err != nil {
 		return nil, err
 	}
@@ -76,9 +71,7 @@ func gitLog(repoPath string) (*time.Time, error) {
 // gitPull returns if any files were pulled down
 func gitPull(row rowItem) (bool, error) {
 
-	cmd := fmt.Sprintf(`git -C %s pull`, row.path)
-
-	b, err := exec.Command("zsh", "-c", cmd).Output()
+	b, err := exec.Command("git", "-C", row.path, "pull").Output()
 
 	var exitError *exec.ExitError
 	if errors.As(err, &exitError) {
