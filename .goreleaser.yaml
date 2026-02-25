@@ -5,7 +5,8 @@ builds:
     env:
       - "CGO_ENABLED=0"
     goos:
-      - "darwin" # Casks are typically for macOS only
+      - "darwin"
+      - "linux"
     goarch:
       - "amd64"
       - "arm64"
