@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"os"
 	"os/exec"
@@ -14,7 +15,10 @@ import (
 // gitDiff gets the number of modified files
 func gitDiff(repoPath string) (string, error) {
 
-	b, err := exec.Command("git", "-C", repoPath, "diff", "--stat").Output()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	b, err := exec.CommandContext(ctx, "git", "-C", repoPath, "diff", "--stat").Output()
 	if err != nil {
 		return "", err
 	}
@@ -71,7 +75,10 @@ func gitLog(repoPath string) (*time.Time, error) {
 // gitPull returns if any files were pulled down
 func gitPull(row rowItem) (bool, error) {
 
-	b, err := exec.Command("git", "-C", row.path, "pull").Output()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	b, err := exec.CommandContext(ctx, "git", "-C", row.path, "pull").Output()
 
 	var exitError *exec.ExitError
 	if errors.As(err, &exitError) {
