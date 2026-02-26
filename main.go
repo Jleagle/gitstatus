@@ -136,9 +136,9 @@ func scanAllDirs(dir string, depth int) (ret []repoItem) {
 	for _, e := range entries {
 		if e.IsDir() {
 
-			d := path.Join(dir, e.Name())
+			d := filepath.Join(dir, e.Name())
 
-			file, err := os.Stat(path.Join(d, ".git", "index"))
+			file, err := os.Stat(filepath.Join(d, ".git", "index"))
 			if err != nil {
 				ret = append(ret, scanAllDirs(d, depth+1)...)
 			} else {

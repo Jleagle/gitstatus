@@ -6,8 +6,8 @@ import (
 	"errors"
 	"os"
 	"os/exec"
-	"path"
 	"strconv"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -41,7 +41,7 @@ func gitDiff(repoPath string) (string, error) {
 // gitBranch gets the branch name
 func gitBranch(pathx string) (string, error) {
 
-	data, err := os.ReadFile(path.Join(pathx, ".git/HEAD"))
+	data, err := os.ReadFile(filepath.Join(pathx, ".git", "HEAD"))
 	if err != nil {
 		return "", err
 	}
