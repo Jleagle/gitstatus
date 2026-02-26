@@ -197,7 +197,7 @@ func filterReposByFilterFlag(repos []repoItem) (ret []repoItem) {
 		excluded := false
 		for _, v := range excludes {
 			v = strings.TrimPrefix(v, "!")
-			if v != "!" && strings.Contains(repoPath, v) {
+			if v != "" && strings.Contains(repoPath, v) {
 				excluded = true
 				break
 			}
