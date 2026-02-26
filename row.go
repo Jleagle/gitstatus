@@ -1,18 +1,15 @@
 package main
 
 import (
-	"time"
-
 	"github.com/spf13/viper"
 )
 
 type rowItem struct {
-	path         string     //
-	branch       string     //
-	changedFiles string     // Modified files
-	updated      bool       // If something was pulled down
-	lastCommit   *time.Time //
-	error        error      //
+	path         string //
+	branch       string //
+	changedFiles string // Modified files
+	updated      bool   // If something was pulled down
+	error        error  //
 }
 
 func (r rowItem) show() bool {
@@ -26,15 +23,3 @@ func (r rowItem) isMain() bool {
 func (r rowItem) isDirty() bool {
 	return r.changedFiles != ""
 }
-
-//func (r rowItem) daysStale() int {
-//	if r.lastCommit == nil {
-//		return 0
-//	}
-//	d := time.Since(*r.lastCommit)
-//	return int(d.Hours() / 24)
-//}
-//
-//func (r rowItem) isStale() bool {
-//	return r.daysStale() > 180
-//}

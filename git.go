@@ -6,7 +6,6 @@ import (
 	"errors"
 	"os"
 	"os/exec"
-	"strconv"
 	"path/filepath"
 	"strings"
 	"time"
@@ -50,26 +49,6 @@ func gitBranch(pathx string) (string, error) {
 	data = bytes.TrimPrefix(data, []byte("ref: refs/heads/"))
 
 	return string(data), nil
-}
-
-// gitLog gets the time of the latest commit
-func gitLog(repoPath string) (*time.Time, error) {
-
-	b, err := exec.Command("git", "-C", repoPath, "log", "-1", "--format=%at").Output()
-	if err != nil {
-		return nil, err
-	}
-
-	str := string(bytes.TrimSpace(b))
-
-	i, err := strconv.ParseInt(str, 10, 64)
-	if err != nil {
-		return nil, err
-	}
-
-	t := time.Unix(i, 0)
-
-	return &t, nil
 }
 
 // gitPull returns if any files were pulled down
