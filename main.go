@@ -1,11 +1,10 @@
 package main
 
 import (
-	"cmp"
 	"fmt"
 	"log"
 	"os"
-	"path"
+	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
@@ -92,7 +91,15 @@ var cmd = &cobra.Command{
 		}
 
 		// Get the base code dir
-		baseDir := cmp.Or(viper.GetString(fDir), "/users/"+os.Getenv("USER")+"/code")
+		baseDir := viper.GetString(fDir)
+		if baseDir == "" {
+			home, err := os.UserHomeDir()
+			if err != nil {
+				fmt.Fprintln(os.Stderr, "unable to determine home directory:", err)
+				return
+			}
+			baseDir = filepath.Join(home, "code")
+		}
 
 		// Get a list of every repo
 		repos := scanAllDirs(baseDir, 1)
