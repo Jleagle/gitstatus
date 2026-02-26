@@ -151,7 +151,7 @@ func TestLastLine(t *testing.T) {
 		{
 			name:  "line with trailing newline",
 			input: []byte("first\nsecond\n"),
-			want:  []byte(""),
+			want:  []byte("second"),
 		},
 	}
 
