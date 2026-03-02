@@ -47,6 +47,8 @@ var (
 
 func init() {
 
+	log.SetFlags(0)
+
 	cmd.Flags().StringVarP(&flagDir, fDir, "d", "", "Directory")
 	cmd.Flags().StringVarP(&flagFilter, fFilter, "f", "", "Filter")
 	cmd.Flags().BoolVarP(&flagVersion, fVersion, "v", false, "Version")
@@ -73,7 +75,7 @@ func init() {
 
 func main() {
 	if err := cmd.Execute(); err != nil {
-		fmt.Println(err)
+		log.Println(err)
 		os.Exit(1)
 	}
 }
@@ -84,9 +86,9 @@ var cmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 
 		if viper.GetBool(fVersion) {
-			fmt.Println("Version: " + version)
-			fmt.Println("Commit: " + commit)
-			fmt.Println("Date: " + date)
+			log.Println("Version: " + version)
+			log.Println("Commit: " + commit)
+			log.Println("Date: " + date)
 			return
 		}
 
@@ -95,7 +97,7 @@ var cmd = &cobra.Command{
 		if baseDir == "" {
 			home, err := os.UserHomeDir()
 			if err != nil {
-				fmt.Fprintln(os.Stderr, "unable to determine home directory:", err)
+				log.Println("unable to determine home directory: " + err.Error())
 				return
 			}
 			baseDir = filepath.Join(home, "code")
@@ -104,14 +106,14 @@ var cmd = &cobra.Command{
 		// Get a list of every repo
 		repos := scanAllDirs(baseDir, 1)
 		if len(repos) == 0 {
-			fmt.Println(baseDir + " does not contain any repos")
+			log.Println(baseDir + " does not contain any repos")
 			return
 		}
 
 		// Filter by filter flag
 		repos = filterReposByFilterFlag(repos)
 		if len(repos) == 0 {
-			fmt.Println("No repos match your directory & filter")
+			log.Println("No repos match your directory & filter")
 			return
 		}
 
@@ -370,6 +372,6 @@ func outputTable(rows []rowItem, baseDir string) {
 	}
 
 	if hidden > 0 {
-		fmt.Println(color.BlueString(fmt.Sprintf("%d repos with nothing to report, use -all to show them\n", hidden)))
+		log.Println(color.BlueString(fmt.Sprintf("%d repos with nothing to report, use -all to show them", hidden)))
 	}
 }
