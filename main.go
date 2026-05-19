@@ -15,7 +15,6 @@ import (
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"golang.org/x/sync/errgroup"
 )
 
 const (
@@ -228,14 +227,20 @@ func pullRepos(repos []repoItem) (rows []rowItem) {
 	bar.SetWidth(100)
 	bar.Start()
 
-	wg := errgroup.Group{}
-	wg.SetLimit(10)
+	wg := sync.WaitGroup{}
+	sem := make(chan struct{}, 10)
 
 	var mu sync.Mutex
 
 	for _, r := range repos {
 
-		wg.Go(func() error {
+		wg.Add(1)
+		go func(r repoItem) {
+			sem <- struct{}{}
+			defer func() {
+				<-sem
+				wg.Done()
+			}()
 
 			defer bar.Increment()
 
@@ -253,13 +258,13 @@ func pullRepos(repos []repoItem) (rows []rowItem) {
 			row.changedFiles, err = gitDiff(r.path)
 			if err != nil {
 				row.error = err
-				return nil
+				return
 			}
 
 			row.branch, err = gitBranch(r.path)
 			if err != nil {
 				row.error = err
-				return nil
+				return
 			}
 
 			// Pull
@@ -267,18 +272,13 @@ func pullRepos(repos []repoItem) (rows []rowItem) {
 				row.updated, err = gitPull(row)
 				if err != nil {
 					row.error = err
-					return nil
+					return
 				}
 			}
-
-			return nil
-		})
+		}(r)
 	}
 
-	err := wg.Wait()
-	if err != nil {
-		log.Println(err)
-	}
+	wg.Wait()
 
 	bar.Finish()
 
