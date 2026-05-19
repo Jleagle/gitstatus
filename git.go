@@ -17,24 +17,18 @@ func gitDiff(repoPath string) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	b, err := exec.CommandContext(ctx, "git", "-C", repoPath, "diff", "--stat").Output()
+	b, err := exec.CommandContext(ctx, "git", "-C", repoPath, "status", "--porcelain").Output()
 	if err != nil {
 		return "", err
 	}
 
 	b = bytes.TrimSpace(b)
-	b = lastLine(b)
-
 	if len(b) == 0 {
 		return "", nil
 	}
 
-	str := string(b)
-
-	parts := strings.Split(str, ",")
-	str = strings.TrimSuffix(parts[0], " changed")
-
-	return str, nil
+	lines := bytes.Count(b, []byte("\n")) + 1
+	return strconv.Itoa(lines), nil
 }
 
 // gitBranch gets the branch name
