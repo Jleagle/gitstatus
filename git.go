@@ -4,9 +4,8 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"os"
 	"os/exec"
-	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -34,15 +33,15 @@ func gitDiff(repoPath string) (string, error) {
 // gitBranch gets the branch name
 func gitBranch(pathx string) (string, error) {
 
-	data, err := os.ReadFile(filepath.Join(pathx, ".git", "HEAD"))
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	b, err := exec.CommandContext(ctx, "git", "-C", pathx, "branch", "--show-current").Output()
 	if err != nil {
 		return "", err
 	}
 
-	data = bytes.TrimSpace(data)
-	data = bytes.TrimPrefix(data, []byte("ref: refs/heads/"))
-
-	return string(data), nil
+	return string(bytes.TrimSpace(b)), nil
 }
 
 // gitPull returns if any files were pulled down
