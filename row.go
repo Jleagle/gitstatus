@@ -17,7 +17,11 @@ func (r rowItem) show() bool {
 }
 
 func (r rowItem) isMain() bool {
-	return r.branch == "master" || r.branch == "main"
+	return r.branch == "master" || r.branch == "main" || r.branch == "trunk" || r.branch == "develop" || r.branch == "dev"
+}
+
+func (r rowItem) isDetached() bool {
+	return len(r.branch) == 40 // Git commit hash length
 }
 
 func (r rowItem) isDirty() bool {

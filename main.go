@@ -324,9 +324,12 @@ func outputTable(rows []rowItem, baseDir string) {
 			}
 
 			// Format branch
-			if len(row.branch) > 30 {
+			if row.isDetached() {
+				row.branch = fmt.Sprintf("(detached at %s)", row.branch[:7])
+			} else if len(row.branch) > 30 {
 				row.branch = row.branch[:30] + "…"
 			}
+
 			if !row.isMain() {
 				row.branch = color.RedString(row.branch)
 			}
