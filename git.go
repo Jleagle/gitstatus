@@ -41,6 +41,13 @@ func gitBranch(pathx string) (string, error) {
 		return "", err
 	}
 
+	branch := string(bytes.TrimSpace(b))
+	if branch != "" {
+		return branch, nil
+	}
+
+	// Fallback for detached HEAD
+	b, _ = exec.CommandContext(ctx, "git", "-C", pathx, "rev-parse", "HEAD").Output()
 	return string(bytes.TrimSpace(b)), nil
 }
 
