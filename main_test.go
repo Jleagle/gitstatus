@@ -74,6 +74,7 @@ func TestFilterReposByFilterFlag(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
+			t.Cleanup(func() { viper.Reset() })
 
 			viper.Set(fFilter, c.filter)
 
@@ -267,6 +268,8 @@ func TestShow(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Cleanup(func() { viper.Reset() })
+
 			viper.Set(fAll, tt.all)
 			if got := tt.row.show(); got != tt.want {
 				t.Errorf("rowItem.show() = %v, want %v", got, tt.want)
@@ -276,6 +279,8 @@ func TestShow(t *testing.T) {
 }
 
 func TestScanAllDirs(t *testing.T) {
+	t.Cleanup(func() { viper.Reset() })
+
 	// Create a temp directory structure with nested git repos
 	tmpDir := t.TempDir()
 
