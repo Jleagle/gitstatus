@@ -34,27 +34,17 @@ var (
 	date    = "unknown"
 )
 
-var (
-	flagDir      string
-	flagFilter   string
-	flagVersion  bool
-	flagMaxDepth int
-	flagShort    bool
-	flagPull     bool
-	flagAll      bool
-)
-
 func init() {
 
 	log.SetFlags(0)
 
-	cmd.Flags().StringVarP(&flagDir, fDir, "d", "", "Directory")
-	cmd.Flags().StringVarP(&flagFilter, fFilter, "f", "", "Filter")
-	cmd.Flags().BoolVarP(&flagVersion, fVersion, "v", false, "Version")
-	cmd.Flags().IntVarP(&flagMaxDepth, fMaxdepth, "m", 2, "Max Depth")
-	cmd.Flags().BoolVarP(&flagShort, fShort, "s", false, "Short Paths")
-	cmd.Flags().BoolVarP(&flagPull, fPull, "p", false, "Pull Repos")
-	cmd.Flags().BoolVarP(&flagAll, fAll, "a", false, "Show all Repos")
+	cmd.Flags().StringP(fDir, "d", "", "Directory")
+	cmd.Flags().StringP(fFilter, "f", "", "Filter")
+	cmd.Flags().BoolP(fVersion, "v", false, "Version")
+	cmd.Flags().IntP(fMaxdepth, "m", 2, "Max Depth")
+	cmd.Flags().BoolP(fShort, "s", false, "Short Paths")
+	cmd.Flags().BoolP(fPull, "p", false, "Pull Repos")
+	cmd.Flags().BoolP(fAll, "a", false, "Show all Repos")
 
 	cobra.OnInitialize(func() {
 
