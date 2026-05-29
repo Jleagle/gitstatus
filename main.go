@@ -324,12 +324,6 @@ func outputTable(rows []rowItem, baseDir string) {
 				row.branch = color.RedString(row.branch)
 			}
 
-			// Format files
-			if row.changedFiles != "" {
-				row.changedFiles = color.RedString(row.changedFiles)
-			}
-
-			//
 			tr := table.Row{row.path, row.branch, row.changedFiles}
 
 			if viper.GetBool(fPull) {

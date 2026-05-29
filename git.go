@@ -5,12 +5,13 @@ import (
 	"context"
 	"errors"
 	"os/exec"
-	"strconv"
 	"strings"
 	"time"
+
+	"github.com/fatih/color"
 )
 
-// gitDiff gets the number of modified files
+// gitDiff returns a colored summary of new/changed/deleted files
 func gitDiff(repoPath string) (string, error) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -26,8 +27,34 @@ func gitDiff(repoPath string) (string, error) {
 		return "", nil
 	}
 
-	lines := bytes.Count(b, []byte("\n")) + 1
-	return strconv.Itoa(lines), nil
+	var added, modified, deleted int
+	for _, line := range bytes.Split(b, []byte("\n")) {
+		if len(line) < 2 {
+			continue
+		}
+		status := string(line[:2])
+		switch {
+		case status == "??", strings.ContainsAny(status, "A"):
+			added++
+		case strings.ContainsAny(status, "D"):
+			deleted++
+		default:
+			modified++
+		}
+	}
+
+	var parts []string
+	if added > 0 {
+		parts = append(parts, color.GreenString("+%d", added))
+	}
+	if modified > 0 {
+		parts = append(parts, color.RGB(255, 165, 0).Sprintf("~%d", modified))
+	}
+	if deleted > 0 {
+		parts = append(parts, color.RedString("-%d", deleted))
+	}
+
+	return strings.Join(parts, " "), nil
 }
 
 // gitBranch gets the branch name
