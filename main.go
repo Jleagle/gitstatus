@@ -289,7 +289,7 @@ func outputTable(rows []rowItem, baseDir string) {
 		}
 	}
 
-	header := table.Row{"Repo", "Branch", "Modified"}
+	header := table.Row{"Repo", "Branch", "Changes"}
 	if viper.GetBool(fPull) {
 		header = append(header, "Pull")
 	}
