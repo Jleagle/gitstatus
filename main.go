@@ -136,11 +136,14 @@ func scanAllDirs(dir string, depth int) (ret []repoItem) {
 
 			d := filepath.Join(dir, e.Name())
 
-			file, err := os.Stat(filepath.Join(d, ".git", "index"))
-			if err != nil {
+			if _, err := os.Stat(filepath.Join(d, ".git")); err != nil {
 				ret = append(ret, scanAllDirs(d, depth+1)...)
 			} else {
-				ret = append(ret, repoItem{path: d, size: file.Size()})
+				var size int64
+				if idx, err := os.Stat(filepath.Join(d, ".git", "index")); err == nil {
+					size = idx.Size()
+				}
+				ret = append(ret, repoItem{path: d, size: size})
 			}
 		}
 	}
