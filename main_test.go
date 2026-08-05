@@ -368,6 +368,65 @@ func initTestRepo(t *testing.T) string {
 	return dir
 }
 
+// runGit runs a git command in dir and fails the test on error.
+func runGit(t *testing.T, dir string, args ...string) {
+
+	t.Helper()
+
+	cmd := exec.Command("git", args...)
+	cmd.Dir = dir
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("failed to run git %v: %v\n%s", args, err, out)
+	}
+}
+
+func TestGitPullEmptyRemote(t *testing.T) {
+
+	tmp := t.TempDir()
+	bare := filepath.Join(tmp, "bare.git")
+	clone := filepath.Join(tmp, "clone")
+
+	runGit(t, tmp, "init", "--bare", bare)
+	runGit(t, tmp, "clone", bare, clone)
+
+	updated, err := gitPull(rowItem{path: clone})
+	if err != nil {
+		t.Fatalf("expected no error pulling a clone of an empty remote, got: %v", err)
+	}
+	if updated {
+		t.Error("expected updated=false for an empty remote")
+	}
+}
+
+func TestGitPullDeletedRemoteBranch(t *testing.T) {
+
+	src := initTestRepo(t)
+
+	tmp := t.TempDir()
+	bare := filepath.Join(tmp, "bare.git")
+	clone := filepath.Join(tmp, "clone")
+
+	runGit(t, tmp, "clone", "--bare", src, bare)
+	runGit(t, tmp, "clone", bare, clone)
+
+	branch, err := gitBranch(clone)
+	if err != nil {
+		t.Fatalf("gitBranch: %v", err)
+	}
+
+	// Delete the branch on the remote (move HEAD off it first)
+	runGit(t, bare, "symbolic-ref", "HEAD", "refs/heads/gone")
+	runGit(t, bare, "branch", "-D", branch)
+
+	_, err = gitPull(rowItem{path: clone})
+	if err == nil {
+		t.Fatal("expected an error pulling when the remote branch was deleted")
+	}
+	if err.Error() != "Remote branch does not exist" {
+		t.Errorf("expected 'Remote branch does not exist', got: %v", err)
+	}
+}
+
 func TestGitDiff(t *testing.T) {
 
 	dir := initTestRepo(t)

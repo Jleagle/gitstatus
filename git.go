@@ -88,6 +88,14 @@ func gitPull(row rowItem) (bool, error) {
 
 	var exitError *exec.ExitError
 	if errors.As(err, &exitError) {
+		if strings.Contains(string(exitError.Stderr), "but no such ref was fetched") {
+			if !hasLocalCommits(ctx, row.path) {
+				// Cloned from an empty remote, nothing to pull
+				return false, nil
+			}
+			//goland:noinspection GoErrorStringFormat
+			return false, errors.New("Remote branch does not exist")
+		}
 		return false, errors.New(string(exitError.Stderr))
 	} else if err != nil {
 		return false, err
@@ -95,12 +103,13 @@ func gitPull(row rowItem) (bool, error) {
 
 	b = bytes.TrimSpace(b)
 
-	if strings.Contains(string(b), "but no such ref was fetched") {
-		//goland:noinspection GoErrorStringFormat
-		return false, errors.New("Remote branch does not exist")
-	}
 	if string(b) == "Already up to date." {
 		return false, nil
 	}
 	return strings.Contains(string(b), "changed"), nil
+}
+
+// hasLocalCommits reports whether HEAD points at a commit (false in a clone of an empty repo)
+func hasLocalCommits(ctx context.Context, repoPath string) bool {
+	return exec.CommandContext(ctx, "git", "-C", repoPath, "rev-parse", "--verify", "-q", "HEAD").Run() == nil
 }
