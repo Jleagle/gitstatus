@@ -9,11 +9,12 @@ type rowItem struct {
 	branch       string //
 	changedFiles string // Modified files
 	updated      bool   // If something was pulled down
+	skipped      string // Why the pull was skipped
 	error        error  //
 }
 
 func (r rowItem) show() bool {
-	return viper.GetBool(fAll) || !r.isMain() || r.isDirty() || r.updated || (r.error != nil)
+	return viper.GetBool(fAll) || !r.isMain() || r.isDirty() || r.updated || r.skipped != "" || (r.error != nil)
 }
 
 func (r rowItem) isMain() bool {

@@ -264,6 +264,18 @@ func TestShow(t *testing.T) {
 			all:  false,
 			want: true,
 		},
+		{
+			name: "clean main branch with skipped pull",
+			row: rowItem{
+				branch:       "main",
+				changedFiles: "",
+				updated:      false,
+				skipped:      skipDiverged,
+				error:        nil,
+			},
+			all:  false,
+			want: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -389,12 +401,165 @@ func TestGitPullEmptyRemote(t *testing.T) {
 	runGit(t, tmp, "init", "--bare", bare)
 	runGit(t, tmp, "clone", bare, clone)
 
-	updated, err := gitPull(rowItem{path: clone})
+	updated, skipped, err := gitPull(rowItem{path: clone})
 	if err != nil {
 		t.Fatalf("expected no error pulling a clone of an empty remote, got: %v", err)
 	}
 	if updated {
 		t.Error("expected updated=false for an empty remote")
+	}
+	if skipped != "" {
+		t.Errorf("expected no skip reason for an empty remote, got %q", skipped)
+	}
+}
+
+// initBareAndClones creates a bare repo with an initial commit and two clones of it.
+func initBareAndClones(t *testing.T) (bare, cloneA, cloneB string) {
+
+	t.Helper()
+
+	src := initTestRepo(t)
+
+	tmp := t.TempDir()
+	bare = filepath.Join(tmp, "bare.git")
+	cloneA = filepath.Join(tmp, "cloneA")
+	cloneB = filepath.Join(tmp, "cloneB")
+
+	runGit(t, tmp, "clone", "--bare", src, bare)
+	runGit(t, tmp, "clone", bare, cloneA)
+	runGit(t, tmp, "clone", bare, cloneB)
+
+	for _, clone := range []string{cloneA, cloneB} {
+		runGit(t, clone, "config", "user.email", "test@test.com")
+		runGit(t, clone, "config", "user.name", "Test")
+	}
+
+	return bare, cloneA, cloneB
+}
+
+// commitAndPush writes a file in dir, commits it, and pushes to origin.
+func commitAndPush(t *testing.T, dir, file, content string) {
+
+	t.Helper()
+
+	if err := os.WriteFile(filepath.Join(dir, file), []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runGit(t, dir, "add", ".")
+	runGit(t, dir, "commit", "-m", "change "+file)
+	runGit(t, dir, "push")
+}
+
+func TestGitPullDirtyNonOverlapping(t *testing.T) {
+
+	_, cloneA, cloneB := initBareAndClones(t)
+
+	// Upstream change to a file cloneB has not touched
+	commitAndPush(t, cloneA, "other.txt", "upstream")
+
+	// Local uncommitted change to a different file
+	if err := os.WriteFile(filepath.Join(cloneB, "file.txt"), []byte("local edit"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	updated, skipped, err := gitPull(rowItem{path: cloneB})
+	if err != nil {
+		t.Fatalf("expected dirty repo with non-overlapping upstream change to pull, got: %v", err)
+	}
+	if skipped != "" {
+		t.Errorf("expected no skip reason, got %q", skipped)
+	}
+	if !updated {
+		t.Error("expected updated=true after pulling upstream change")
+	}
+
+	// Local change must survive the pull
+	b, _ := os.ReadFile(filepath.Join(cloneB, "file.txt"))
+	if string(b) != "local edit" {
+		t.Errorf("expected local change preserved, got %q", b)
+	}
+}
+
+func TestGitPullSkipsOverlappingLocalChanges(t *testing.T) {
+
+	_, cloneA, cloneB := initBareAndClones(t)
+
+	// Upstream change to the same file cloneB has modified locally
+	commitAndPush(t, cloneA, "file.txt", "upstream edit")
+
+	if err := os.WriteFile(filepath.Join(cloneB, "file.txt"), []byte("local edit"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	updated, skipped, err := gitPull(rowItem{path: cloneB})
+	if err != nil {
+		t.Fatalf("expected overlapping local changes to skip, not error, got: %v", err)
+	}
+	if skipped != skipLocalChanges {
+		t.Errorf("expected skip reason %q, got %q", skipLocalChanges, skipped)
+	}
+	if updated {
+		t.Error("expected updated=false when pull is skipped")
+	}
+
+	// Repo must be left untouched
+	b, _ := os.ReadFile(filepath.Join(cloneB, "file.txt"))
+	if string(b) != "local edit" {
+		t.Errorf("expected local change preserved, got %q", b)
+	}
+}
+
+func TestGitPullSkipsOverlappingUntrackedFile(t *testing.T) {
+
+	_, cloneA, cloneB := initBareAndClones(t)
+
+	// Upstream adds a file that exists untracked in cloneB
+	commitAndPush(t, cloneA, "new.txt", "upstream")
+
+	if err := os.WriteFile(filepath.Join(cloneB, "new.txt"), []byte("local untracked"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	updated, skipped, err := gitPull(rowItem{path: cloneB})
+	if err != nil {
+		t.Fatalf("expected overlapping untracked file to skip, not error, got: %v", err)
+	}
+	if skipped != skipUntracked {
+		t.Errorf("expected skip reason %q, got %q", skipUntracked, skipped)
+	}
+	if updated {
+		t.Error("expected updated=false when pull is skipped")
+	}
+
+	b, _ := os.ReadFile(filepath.Join(cloneB, "new.txt"))
+	if string(b) != "local untracked" {
+		t.Errorf("expected untracked file preserved, got %q", b)
+	}
+}
+
+func TestGitPullSkipsDivergedBranch(t *testing.T) {
+
+	_, cloneA, cloneB := initBareAndClones(t)
+
+	// Upstream and local commits touch different files, so a merge would
+	// succeed — but it would not be a fast-forward, so we skip it
+	commitAndPush(t, cloneA, "upstream.txt", "upstream")
+
+	if err := os.WriteFile(filepath.Join(cloneB, "local.txt"), []byte("local"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runGit(t, cloneB, "add", ".")
+	runGit(t, cloneB, "commit", "-m", "local commit")
+
+	updated, skipped, err := gitPull(rowItem{path: cloneB})
+	if err != nil {
+		t.Fatalf("expected diverged branch to skip, not error, got: %v", err)
+	}
+	if skipped != skipDiverged {
+		t.Errorf("expected skip reason %q, got %q", skipDiverged, skipped)
+	}
+	if updated {
+		t.Error("expected updated=false when pull is skipped")
 	}
 }
 
@@ -418,12 +583,65 @@ func TestGitPullDeletedRemoteBranch(t *testing.T) {
 	runGit(t, bare, "symbolic-ref", "HEAD", "refs/heads/gone")
 	runGit(t, bare, "branch", "-D", branch)
 
-	_, err = gitPull(rowItem{path: clone})
+	_, _, err = gitPull(rowItem{path: clone})
 	if err == nil {
 		t.Fatal("expected an error pulling when the remote branch was deleted")
 	}
 	if err.Error() != "Remote branch does not exist" {
 		t.Errorf("expected 'Remote branch does not exist', got: %v", err)
+	}
+}
+
+func TestProcessRepoPullsDirtyRepo(t *testing.T) {
+
+	t.Cleanup(func() { viper.Reset() })
+	viper.Set(fPull, true)
+
+	_, cloneA, cloneB := initBareAndClones(t)
+
+	// Upstream change to a file cloneB has not touched
+	commitAndPush(t, cloneA, "other.txt", "upstream")
+
+	// Local uncommitted change to a different file
+	if err := os.WriteFile(filepath.Join(cloneB, "file.txt"), []byte("local edit"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	row := processRepo(cloneB)
+	if row.error != nil {
+		t.Fatalf("processRepo: %v", row.error)
+	}
+	if !row.updated {
+		t.Error("expected a dirty repo with a non-overlapping upstream change to be pulled")
+	}
+	if row.skipped != "" {
+		t.Errorf("expected no skip reason, got %q", row.skipped)
+	}
+}
+
+func TestProcessRepoRecordsSkipReason(t *testing.T) {
+
+	t.Cleanup(func() { viper.Reset() })
+	viper.Set(fPull, true)
+
+	_, cloneA, cloneB := initBareAndClones(t)
+
+	// Upstream change to the same file cloneB has modified locally
+	commitAndPush(t, cloneA, "file.txt", "upstream edit")
+
+	if err := os.WriteFile(filepath.Join(cloneB, "file.txt"), []byte("local edit"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	row := processRepo(cloneB)
+	if row.error != nil {
+		t.Fatalf("processRepo: %v", row.error)
+	}
+	if row.updated {
+		t.Error("expected updated=false when pull is skipped")
+	}
+	if row.skipped != skipLocalChanges {
+		t.Errorf("expected skip reason %q, got %q", skipLocalChanges, row.skipped)
 	}
 }
 

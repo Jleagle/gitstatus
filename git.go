@@ -78,35 +78,53 @@ func gitBranch(pathx string) (string, error) {
 	return string(bytes.TrimSpace(b)), nil
 }
 
-// gitPull returns if any files were pulled down
-func gitPull(row rowItem) (bool, error) {
+// Reasons a pull was skipped because git refused to fast-forward safely
+const (
+	skipLocalChanges = "local changes"
+	skipUntracked    = "untracked files"
+	skipDiverged     = "diverged"
+)
+
+// gitPull fast-forwards the repo if git can do so without touching local
+// changes, returning whether files were pulled down or why it was skipped
+func gitPull(row rowItem) (updated bool, skipped string, err error) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	b, err := exec.CommandContext(ctx, "git", "-C", row.path, "pull").Output()
+	// pull.rebase=false forces the merge path; with a rebase config git refuses
+	// any pull on a dirty tree, even one that fast-forwards cleanly
+	b, err := exec.CommandContext(ctx, "git", "-C", row.path, "-c", "pull.rebase=false", "pull", "--ff-only").Output()
 
 	var exitError *exec.ExitError
 	if errors.As(err, &exitError) {
-		if strings.Contains(string(exitError.Stderr), "but no such ref was fetched") {
+		stderr := string(exitError.Stderr)
+		switch {
+		case strings.Contains(stderr, "Your local changes to the following files would be overwritten"):
+			return false, skipLocalChanges, nil
+		case strings.Contains(stderr, "untracked working tree files would be overwritten"):
+			return false, skipUntracked, nil
+		case strings.Contains(stderr, "Not possible to fast-forward"):
+			return false, skipDiverged, nil
+		case strings.Contains(stderr, "but no such ref was fetched"):
 			if !hasLocalCommits(ctx, row.path) {
 				// Cloned from an empty remote, nothing to pull
-				return false, nil
+				return false, "", nil
 			}
 			//goland:noinspection GoErrorStringFormat
-			return false, errors.New("Remote branch does not exist")
+			return false, "", errors.New("Remote branch does not exist")
 		}
-		return false, errors.New(string(exitError.Stderr))
+		return false, "", errors.New(stderr)
 	} else if err != nil {
-		return false, err
+		return false, "", err
 	}
 
 	b = bytes.TrimSpace(b)
 
 	if string(b) == "Already up to date." {
-		return false, nil
+		return false, "", nil
 	}
-	return strings.Contains(string(b), "changed"), nil
+	return strings.Contains(string(b), "changed"), "", nil
 }
 
 // hasLocalCommits reports whether HEAD points at a commit (false in a clone of an empty repo)

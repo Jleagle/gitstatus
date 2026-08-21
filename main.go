@@ -227,55 +227,56 @@ func pullRepos(repos []repoItem) (rows []rowItem) {
 
 	for _, r := range repos {
 
-		wg.Add(1)
-		go func(r repoItem) {
+		wg.Go(func() {
 			sem <- struct{}{}
 			defer func() {
 				<-sem
-				wg.Done()
+				bar.Increment()
 			}()
 
-			defer bar.Increment()
+			row := processRepo(r.path)
 
-			// Make row
-			row := rowItem{path: r.path}
-
-			defer func() {
-				mu.Lock()
-				rows = append(rows, row)
-				mu.Unlock()
-			}()
-
-			var err error
-
-			row.changedFiles, err = gitDiff(r.path)
-			if err != nil {
-				row.error = err
-				return
-			}
-
-			row.branch, err = gitBranch(r.path)
-			if err != nil {
-				row.error = err
-				return
-			}
-
-			// Pull
-			if viper.GetBool(fPull) && !row.isDirty() {
-				row.updated, err = gitPull(row)
-				if err != nil {
-					row.error = err
-					return
-				}
-			}
-		}(r)
+			mu.Lock()
+			rows = append(rows, row)
+			mu.Unlock()
+		})
 	}
 
 	wg.Wait()
-
 	bar.Finish()
 
 	return rows
+}
+
+// processRepo builds the result row for a single repo, pulling if requested
+func processRepo(path string) rowItem {
+
+	row := rowItem{path: path}
+
+	var err error
+
+	row.changedFiles, err = gitDiff(path)
+	if err != nil {
+		row.error = err
+		return row
+	}
+
+	row.branch, err = gitBranch(path)
+	if err != nil {
+		row.error = err
+		return row
+	}
+
+	// Pull; gitPull skips repos it cannot fast-forward without conflicts
+	if viper.GetBool(fPull) {
+		row.updated, row.skipped, err = gitPull(row)
+		if err != nil {
+			row.error = err
+			return row
+		}
+	}
+
+	return row
 }
 
 func outputTable(rows []rowItem, baseDir string) {
@@ -334,7 +335,9 @@ func outputTable(rows []rowItem, baseDir string) {
 				var action = ""
 				if row.updated {
 					action = color.GreenString("Updated")
-				} else if !row.isDirty() {
+				} else if row.skipped != "" {
+					action = color.RGB(255, 165, 0).Sprintf("Skipped (%s)", row.skipped)
+				} else if row.error == nil {
 					action = "Pulled"
 				}
 
