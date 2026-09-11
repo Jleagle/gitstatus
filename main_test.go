@@ -531,7 +531,7 @@ func TestGitPullDeletedRemoteBranch(t *testing.T) {
 	runGit(t, tmp, "clone", "--bare", src, bare)
 	runGit(t, tmp, "clone", bare, clone)
 
-	branch, err := gitBranch(clone)
+	branch, _, err := gitBranch(clone)
 	if err != nil {
 		t.Fatalf("gitBranch: %v", err)
 	}
@@ -632,7 +632,7 @@ func TestGitBranch(t *testing.T) {
 
 	dir := initTestRepo(t)
 
-	branch, err := gitBranch(dir)
+	branch, _, err := gitBranch(dir)
 	if err != nil {
 		t.Fatalf("gitBranch: %v", err)
 	}
@@ -654,7 +654,7 @@ func TestGitBranchDetachedHead(t *testing.T) {
 		t.Fatalf("git checkout --detach: %v\n%s", err, out)
 	}
 
-	branch, err := gitBranch(dir)
+	branch, _, err := gitBranch(dir)
 	if err != nil {
 		t.Fatalf("gitBranch on detached HEAD: %v", err)
 	}
