@@ -262,7 +262,7 @@ func processRepo(path string) rowItem {
 		return row
 	}
 
-	row.branch, err = gitBranch(path)
+	row.branch, row.detached, err = gitBranch(path)
 	if err != nil {
 		row.error = err
 		return row

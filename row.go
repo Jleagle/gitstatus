@@ -7,6 +7,7 @@ import (
 type rowItem struct {
 	path     string //
 	branch   string //
+	detached bool   //
 	added    int    // New files
 	modified int    // Modified files
 	deleted  int    // Deleted files
@@ -24,7 +25,7 @@ func (r rowItem) isMain() bool {
 }
 
 func (r rowItem) isDetached() bool {
-	return len(r.branch) == 40 // Git commit hash length
+	return r.detached
 }
 
 func (r rowItem) isDirty() bool {

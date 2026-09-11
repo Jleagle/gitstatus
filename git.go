@@ -38,25 +38,25 @@ func gitDiff(repoPath string) (added, modified, deleted int, err error) {
 	return added, modified, deleted, nil
 }
 
-// gitBranch gets the branch name
-func gitBranch(pathx string) (string, error) {
+// gitBranch gets the branch name and whether it is detached
+func gitBranch(pathx string) (string, bool, error) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	b, err := exec.CommandContext(ctx, "git", "-C", pathx, "branch", "--show-current").Output()
 	if err != nil {
-		return "", err
+		return "", false, err
 	}
 
 	branch := string(bytes.TrimSpace(b))
 	if branch != "" {
-		return branch, nil
+		return branch, false, nil
 	}
 
 	// Fallback for detached HEAD
 	b, _ = exec.CommandContext(ctx, "git", "-C", pathx, "rev-parse", "HEAD").Output()
-	return string(bytes.TrimSpace(b)), nil
+	return string(bytes.TrimSpace(b)), true, nil
 }
 
 // Reasons a pull was skipped because git refused to fast-forward safely
