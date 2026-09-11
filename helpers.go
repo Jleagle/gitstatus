@@ -18,7 +18,7 @@ func formatCount(sign string, count int, c *color.Color) string {
 		return "   "
 	}
 	if count > 99 {
-		count = 99
+		return c.Sprint("99+")
 	}
 	return c.Sprintf("%s%02d", sign, count)
 }

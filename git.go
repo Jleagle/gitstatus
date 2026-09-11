@@ -25,13 +25,22 @@ func gitDiff(repoPath string) (added, modified, deleted int, err error) {
 			continue
 		}
 		status := string(line[:2])
-		switch {
-		case status == "??", strings.ContainsAny(status, "A"):
+		if status == "??" {
 			added++
-		case strings.ContainsAny(status, "D"):
+			continue
+		}
+		if strings.ContainsAny(status, "A") {
+			added++
+		}
+		if strings.ContainsAny(status, "D") {
 			deleted++
-		default:
+		}
+		if strings.ContainsAny(status, "M") || strings.ContainsAny(status, "C") || strings.ContainsAny(status, "U") || strings.ContainsAny(status, "T") {
 			modified++
+		}
+		if strings.ContainsAny(status, "R") {
+			added++
+			deleted++
 		}
 	}
 
