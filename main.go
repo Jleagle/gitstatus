@@ -324,9 +324,18 @@ func outputTable(rows []rowItem, baseDir string) {
 
 			// Format branch
 			if row.isDetached() {
-				row.branch = fmt.Sprintf("(detached at %s)", row.branch[:7])
-			} else if len(row.branch) > 30 {
-				row.branch = row.branch[:30] + "…"
+				// Detached hashes are ASCII hex, so slicing bytes is fine, but using runes is safer
+				runes := []rune(row.branch)
+				if len(runes) > 7 {
+					row.branch = fmt.Sprintf("(detached at %s)", string(runes[:7]))
+				} else {
+					row.branch = fmt.Sprintf("(detached at %s)", row.branch)
+				}
+			} else {
+				runes := []rune(row.branch)
+				if len(runes) > 30 {
+					row.branch = string(runes[:30]) + "…"
+				}
 			}
 
 			if !row.isMain() {
