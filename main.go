@@ -13,6 +13,7 @@ import (
 	"github.com/cheggaaa/pb/v3"
 	"github.com/fatih/color"
 	"github.com/jedib0t/go-pretty/v6/table"
+	"github.com/jedib0t/go-pretty/v6/text"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -293,18 +294,21 @@ func outputTable(rows []rowItem, baseDir string) {
 		}
 	}
 
-	header := table.Row{"Repo", "Branch", "Changes"}
+	changesHeader := color.GreenString("Add") + " " + orange.Sprint("Mod") + " " + color.RedString("Del")
+
+	header := table.Row{"REPO", "BRANCH", changesHeader}
 	if viper.GetBool(fPull) {
-		header = append(header, "Pull")
+		header = append(header, "PULL")
 	}
 	if hasErrors {
-		header = append(header, "Error")
+		header = append(header, "ERROR")
 	}
 
 	tab := table.NewWriter()
 	tab.SetOutputMirror(os.Stdout)
 	tab.AppendHeader(header)
 	tab.SetStyle(table.StyleRounded)
+	tab.Style().Format.Header = text.FormatDefault
 
 	hidden := 0
 
@@ -336,7 +340,7 @@ func outputTable(rows []rowItem, baseDir string) {
 				if row.updated {
 					action = color.GreenString("Updated")
 				} else if row.skipped != "" {
-					action = color.RGB(255, 165, 0).Sprintf("Skipped (%s)", row.skipped)
+					action = orange.Sprintf("Skipped (%s)", row.skipped)
 				} else if row.error == nil {
 					action = "Pulled"
 				}

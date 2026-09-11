@@ -4,12 +4,16 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"os/exec"
 	"strings"
 	"time"
 
 	"github.com/fatih/color"
 )
+
+// orange has no named helper in fatih/color, unlike green/red
+var orange = color.RGB(255, 165, 0)
 
 // gitDiff returns a colored summary of new/changed/deleted files
 func gitDiff(repoPath string) (string, error) {
@@ -43,18 +47,36 @@ func gitDiff(repoPath string) (string, error) {
 		}
 	}
 
-	var parts []string
+	var strAdded, strModified, strDeleted string
+
 	if added > 0 {
-		parts = append(parts, color.GreenString("+%d", added))
-	}
-	if modified > 0 {
-		parts = append(parts, color.RGB(255, 165, 0).Sprintf("~%d", modified))
-	}
-	if deleted > 0 {
-		parts = append(parts, color.RedString("-%d", deleted))
+		if added > 99 {
+			added = 99
+		}
+		strAdded = color.GreenString("+%02d", added)
+	} else {
+		strAdded = "   "
 	}
 
-	return strings.Join(parts, " "), nil
+	if modified > 0 {
+		if modified > 99 {
+			modified = 99
+		}
+		strModified = orange.Sprintf("~%02d", modified)
+	} else {
+		strModified = "   "
+	}
+
+	if deleted > 0 {
+		if deleted > 99 {
+			deleted = 99
+		}
+		strDeleted = color.RedString("-%02d", deleted)
+	} else {
+		strDeleted = "   "
+	}
+
+	return fmt.Sprintf("%s %s %s", strAdded, strModified, strDeleted), nil
 }
 
 // gitBranch gets the branch name
