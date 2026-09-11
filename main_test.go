@@ -93,44 +93,6 @@ func TestFilterReposByFilterFlag(t *testing.T) {
 	}
 }
 
-func TestLastLine(t *testing.T) {
-	tests := []struct {
-		name  string
-		input []byte
-		want  []byte
-	}{
-		{
-			name:  "single line",
-			input: []byte("hello"),
-			want:  []byte("hello"),
-		},
-		{
-			name:  "multiple lines",
-			input: []byte("first\nsecond\nthird"),
-			want:  []byte("third"),
-		},
-		{
-			name:  "empty string",
-			input: []byte(""),
-			want:  []byte(""),
-		},
-		{
-			name:  "line with trailing newline",
-			input: []byte("first\nsecond\n"),
-			want:  []byte("second"),
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := lastLine(tt.input)
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("lastLine() = %q, want %q", got, tt.want)
-			}
-		})
-	}
-}
-
 func TestIsMain(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -171,30 +133,30 @@ func TestIsMain(t *testing.T) {
 
 func TestIsDirty(t *testing.T) {
 	tests := []struct {
-		name         string
-		changedFiles string
-		want         bool
+		name string
+		row  rowItem
+		want bool
 	}{
 		{
-			name:         "no changes",
-			changedFiles: "",
-			want:         false,
+			name: "no changes",
+			row:  rowItem{},
+			want: false,
 		},
 		{
-			name:         "has changes",
-			changedFiles: "3 files",
-			want:         true,
+			name: "has changes",
+			row:  rowItem{added: 1, modified: 1, deleted: 1},
+			want: true,
 		},
 		{
-			name:         "single file changed",
-			changedFiles: "1 file",
-			want:         true,
+			name: "single file changed",
+			row:  rowItem{modified: 1},
+			want: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			r := rowItem{changedFiles: tt.changedFiles}
+			r := tt.row
 			if got := r.isDirty(); got != tt.want {
 				t.Errorf("rowItem.isDirty() = %v, want %v", got, tt.want)
 			}
@@ -212,10 +174,9 @@ func TestShow(t *testing.T) {
 		{
 			name: "clean main branch, all=false",
 			row: rowItem{
-				branch:       "main",
-				changedFiles: "",
-				updated:      false,
-				error:        nil,
+				branch:  "main",
+				updated: false,
+				error:   nil,
 			},
 			all:  false,
 			want: false,
@@ -223,10 +184,9 @@ func TestShow(t *testing.T) {
 		{
 			name: "clean main branch, all=true",
 			row: rowItem{
-				branch:       "main",
-				changedFiles: "",
-				updated:      false,
-				error:        nil,
+				branch:  "main",
+				updated: false,
+				error:   nil,
 			},
 			all:  true,
 			want: true,
@@ -234,10 +194,10 @@ func TestShow(t *testing.T) {
 		{
 			name: "dirty main branch",
 			row: rowItem{
-				branch:       "main",
-				changedFiles: "3 files",
-				updated:      false,
-				error:        nil,
+				branch:   "main",
+				modified: 3,
+				updated:  false,
+				error:    nil,
 			},
 			all:  false,
 			want: true,
@@ -245,10 +205,9 @@ func TestShow(t *testing.T) {
 		{
 			name: "clean feature branch",
 			row: rowItem{
-				branch:       "feature/test",
-				changedFiles: "",
-				updated:      false,
-				error:        nil,
+				branch:  "feature/test",
+				updated: false,
+				error:   nil,
 			},
 			all:  false,
 			want: true,
@@ -256,10 +215,9 @@ func TestShow(t *testing.T) {
 		{
 			name: "clean main branch with updates",
 			row: rowItem{
-				branch:       "main",
-				changedFiles: "",
-				updated:      true,
-				error:        nil,
+				branch:  "main",
+				updated: true,
+				error:   nil,
 			},
 			all:  false,
 			want: true,
@@ -267,11 +225,10 @@ func TestShow(t *testing.T) {
 		{
 			name: "clean main branch with skipped pull",
 			row: rowItem{
-				branch:       "main",
-				changedFiles: "",
-				updated:      false,
-				skipped:      skipDiverged,
-				error:        nil,
+				branch:  "main",
+				updated: false,
+				skipped: skipDiverged,
+				error:   nil,
 			},
 			all:  false,
 			want: true,
@@ -649,24 +606,25 @@ func TestGitDiff(t *testing.T) {
 
 	dir := initTestRepo(t)
 
-	// Clean repo should have no diff
-	diff, err := gitDiff(dir)
+	// Clean repo should have no counts
+	added, modified, deleted, err := gitDiff(dir)
 	if err != nil {
 		t.Fatalf("gitDiff on clean repo: %v", err)
 	}
-	if diff != "" {
-		t.Errorf("expected empty diff on clean repo, got %q", diff)
+	if added != 0 || modified != 0 || deleted != 0 {
+		t.Errorf("expected zero counts on clean repo, got +%d ~%d -%d", added, modified, deleted)
 	}
 
-	// Modify a file
+	// One modified, one added, one deleted file
 	os.WriteFile(filepath.Join(dir, "file.txt"), []byte("modified"), 0o644)
+	os.WriteFile(filepath.Join(dir, "new.txt"), []byte("new"), 0o644)
 
-	diff, err = gitDiff(dir)
+	added, modified, deleted, err = gitDiff(dir)
 	if err != nil {
 		t.Fatalf("gitDiff on dirty repo: %v", err)
 	}
-	if diff == "" {
-		t.Error("expected non-empty diff on dirty repo")
+	if added != 1 || modified != 1 || deleted != 0 {
+		t.Errorf("expected +1 ~1 -0, got +%d ~%d -%d", added, modified, deleted)
 	}
 }
 

@@ -5,12 +5,14 @@ import (
 )
 
 type rowItem struct {
-	path         string //
-	branch       string //
-	changedFiles string // Modified files
-	updated      bool   // If something was pulled down
-	skipped      string // Why the pull was skipped
-	error        error  //
+	path     string //
+	branch   string //
+	added    int    // New files
+	modified int    // Modified files
+	deleted  int    // Deleted files
+	updated  bool   // If something was pulled down
+	skipped  string // Why the pull was skipped
+	error    error  //
 }
 
 func (r rowItem) show() bool {
@@ -26,5 +28,5 @@ func (r rowItem) isDetached() bool {
 }
 
 func (r rowItem) isDirty() bool {
-	return r.changedFiles != ""
+	return r.added+r.modified+r.deleted > 0
 }

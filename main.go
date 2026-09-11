@@ -256,7 +256,7 @@ func processRepo(path string) rowItem {
 
 	var err error
 
-	row.changedFiles, err = gitDiff(path)
+	row.added, row.modified, row.deleted, err = gitDiff(path)
 	if err != nil {
 		row.error = err
 		return row
@@ -294,7 +294,8 @@ func outputTable(rows []rowItem, baseDir string) {
 		}
 	}
 
-	changesHeader := color.GreenString("Add") + " " + orange.Sprint("Mod") + " " + color.RedString("Del")
+	// Three-char labels over the three-char counts rendered by formatCount below
+	changesHeader := green.Sprint("Add") + " " + orange.Sprint("Mod") + " " + red.Sprint("Del")
 
 	header := table.Row{"REPO", "BRANCH", changesHeader}
 	if viper.GetBool(fPull) {
@@ -332,7 +333,14 @@ func outputTable(rows []rowItem, baseDir string) {
 				row.branch = color.RedString(row.branch)
 			}
 
-			tr := table.Row{row.path, row.branch, row.changedFiles}
+			var changes string
+			if row.isDirty() {
+				changes = formatCount("+", row.added, green) + " " +
+					formatCount("~", row.modified, orange) + " " +
+					formatCount("-", row.deleted, red)
+			}
+
+			tr := table.Row{row.path, row.branch, changes}
 
 			if viper.GetBool(fPull) {
 

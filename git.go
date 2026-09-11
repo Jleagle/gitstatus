@@ -4,35 +4,23 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"os/exec"
 	"strings"
 	"time"
-
-	"github.com/fatih/color"
 )
 
-// orange has no named helper in fatih/color, unlike green/red
-var orange = color.RGB(255, 165, 0)
-
-// gitDiff returns a colored summary of new/changed/deleted files
-func gitDiff(repoPath string) (string, error) {
+// gitDiff counts the new/changed/deleted files in the repo
+func gitDiff(repoPath string) (added, modified, deleted int, err error) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	b, err := exec.CommandContext(ctx, "git", "-C", repoPath, "status", "--porcelain").Output()
 	if err != nil {
-		return "", err
+		return 0, 0, 0, err
 	}
 
-	b = bytes.TrimSpace(b)
-	if len(b) == 0 {
-		return "", nil
-	}
-
-	var added, modified, deleted int
-	for _, line := range bytes.Split(b, []byte("\n")) {
+	for line := range bytes.SplitSeq(bytes.TrimSpace(b), []byte("\n")) {
 		if len(line) < 2 {
 			continue
 		}
@@ -47,36 +35,7 @@ func gitDiff(repoPath string) (string, error) {
 		}
 	}
 
-	var strAdded, strModified, strDeleted string
-
-	if added > 0 {
-		if added > 99 {
-			added = 99
-		}
-		strAdded = color.GreenString("+%02d", added)
-	} else {
-		strAdded = "   "
-	}
-
-	if modified > 0 {
-		if modified > 99 {
-			modified = 99
-		}
-		strModified = orange.Sprintf("~%02d", modified)
-	} else {
-		strModified = "   "
-	}
-
-	if deleted > 0 {
-		if deleted > 99 {
-			deleted = 99
-		}
-		strDeleted = color.RedString("-%02d", deleted)
-	} else {
-		strDeleted = "   "
-	}
-
-	return fmt.Sprintf("%s %s %s", strAdded, strModified, strDeleted), nil
+	return added, modified, deleted, nil
 }
 
 // gitBranch gets the branch name
