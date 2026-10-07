@@ -13,6 +13,7 @@ import (
 
 const (
 	recentDone  = 6
+	runningMax  = 10
 	progressW   = 40
 	livePathMax = 48
 )
@@ -107,12 +108,15 @@ func (m *liveModel) View() tea.View {
 		pull = green.Render("on")
 	}
 	header := badge.Render("gitstatus") + " " + dim.Render("scanning ") + bright.Render(tildeHome(m.baseDir)) +
-		dim.Render(fmt.Sprintf(" · %d repos · %d workers · pull ", m.total, workers)) + pull + "\n\n"
+		dim.Render(fmt.Sprintf(" · %d repos · %d workers · pull ", m.total, concurrency())) + pull + "\n\n"
 
 	var b strings.Builder
 
-	for _, p := range m.running {
+	for _, p := range m.running[:min(len(m.running), runningMax)] {
 		b.WriteString(m.spinner.View() + " " + pad(bright.Render(m.livePath(p)), m.pathW+2) + blue.Render(m.stages[p]) + "\n")
+	}
+	if more := len(m.running) - runningMax; more > 0 {
+		b.WriteString(dim.Render(fmt.Sprintf("  … %d more running", more)) + "\n")
 	}
 	if len(m.running) > 0 {
 		b.WriteString("\n")
@@ -143,7 +147,10 @@ func (m *liveModel) View() tea.View {
 
 // frameHeight is the tallest the live view can get: header, running, done and progress sections
 func (m *liveModel) frameHeight() int {
-	running := min(workers, m.total)
+	running := min(concurrency(), m.total)
+	if running > runningMax {
+		running = runningMax + 1
+	}
 	done := min(recentDone+1, m.total)
 	return 2 + running + 1 + done + 1 + 2
 }
