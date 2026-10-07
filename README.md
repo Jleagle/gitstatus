@@ -4,6 +4,18 @@
 
 `brew install Jleagle/gitstatus/gitstatus`
 
+Homebrew compiles it from source on your machine.
+
+### Upgrading from the cask
+
+Up to 2.3.0 gitstatus was a cask of prebuilt binaries. `brew upgrade` now
+reports that cask as disabled; swap to the formula with
+
+```
+brew uninstall --cask gitstatus
+brew install Jleagle/gitstatus/gitstatus
+```
+
 ### Flags
 
 ```

@@ -1,37 +1,73 @@
 name: Release
 
 on:
-  push:
-    tags:
-      # Trigger on any tag starting with 'v' (e.g., v1.0.0)
-      - 'v*'
+  release:
+    types: [ published ]
+
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag of an existing release, e.g. v1.2.3"
+        required: true
 
 permissions:
   contents: write
 
+env:
+  TAG: ${{ github.event.release.tag_name || inputs.tag }}
+
 jobs:
-  goreleaser:
+  release:
     runs-on: ubuntu-latest
     steps:
+      - name: Check tag
+        run: |
+          if ! [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Tag '$TAG' must look like v1.2.3"
+            exit 1
+          fi
+
       - name: Checkout
         uses: actions/checkout@v7
         with:
-          fetch-depth: 0
+          ref: ${{ env.TAG }}
 
       - name: Set up Go
         uses: actions/setup-go@v7
         with:
           go-version: 'stable'
 
-      - name: Test with the Go CLI
-        run: go test
+      - name: Test
+        run: go test ./...
 
-      - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v7
+      # Brew builds from GitHub's source tarball for the tag, so there are no
+      # binaries to attach to the release.
+      - name: Render the formula
+        run: |
+          URL="https://github.com/${GITHUB_REPOSITORY}/archive/refs/tags/${TAG}.tar.gz"
+          SHA256="$(curl -fsSL --retry 3 "$URL" | sha256sum | cut -d' ' -f1)"
+          ./homebrew/formula.sh "${TAG#v}" "$SHA256" "$(git rev-parse HEAD)" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > gitstatus.rb
+          cat gitstatus.rb
+
+      - name: Checkout the Homebrew tap
+        uses: actions/checkout@v7
         with:
-          # distribution and version default to goreleaser and '~> v2';
-          # v7 warns on `version: latest` and locks it to '~> v2' anyway
-          args: release --clean
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          HOMEBREW_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          repository: Jleagle/homebrew-gitstatus
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: tap
+
+      - name: Update the Homebrew tap
+        run: |
+          mkdir -p tap/Formula tap/Casks
+          cp gitstatus.rb tap/Formula/gitstatus.rb
+          cp homebrew/cask.rb tap/Casks/gitstatus.rb
+          cd tap
+          git add Formula/gitstatus.rb Casks/gitstatus.rb
+          if git diff --cached --quiet; then
+            echo "Tap already up to date"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Update gitstatus to ${TAG#v}"
+          git push

@@ -46,7 +46,7 @@ func concurrency() int {
 	return workers
 }
 
-// These variables are set by goreleaser's ldflags
+// These variables are set by the Homebrew formula's ldflags, see homebrew/formula.sh
 var (
 	version = "dev"
 	commit  = "none"
