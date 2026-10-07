@@ -9,6 +9,8 @@ import (
 	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/colorprofile"
+	"github.com/charmbracelet/x/ansi"
+	"github.com/charmbracelet/x/term"
 	"github.com/spf13/viper"
 )
 
@@ -38,7 +40,7 @@ type liveModel struct {
 	running     []string // paths in the order they started
 	stages      map[string]string
 	done        []rowItem
-	finished    bool
+	elapsed     time.Duration
 	interrupted bool
 }
 
@@ -86,9 +88,8 @@ func (m *liveModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.done = append(m.done, msg.row)
 	case allDoneMsg:
-		m.finished = true
-		results := strings.TrimSuffix(renderResults(m.done, m.baseDir, time.Since(m.start)), "\n")
-		return m, tea.Sequence(tea.Println(results), tea.Quit)
+		m.elapsed = time.Since(m.start)
+		return m, tea.Quit
 	case spinner.TickMsg:
 		var cmd tea.Cmd
 		m.spinner, cmd = m.spinner.Update(msg)
@@ -99,11 +100,6 @@ func (m *liveModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m *liveModel) View() tea.View {
 
-	// Results are printed above the live region, which is then cleared
-	if m.finished {
-		return tea.NewView("")
-	}
-
 	pull := dim.Render("off")
 	if viper.GetBool(fPull) {
 		pull = green.Render("on")
@@ -113,10 +109,11 @@ func (m *liveModel) View() tea.View {
 
 	var b strings.Builder
 
-	for _, p := range m.running[:min(len(m.running), runningMax)] {
+	slots, moreLine := m.runningSlots()
+	for _, p := range m.running[:min(len(m.running), slots)] {
 		b.WriteString(m.spinner.View() + " " + pad(bright.Render(m.livePath(p)), m.pathW+2) + blue.Render(m.stages[p]) + "\n")
 	}
-	if more := len(m.running) - runningMax; more > 0 {
+	if more := len(m.running) - slots; moreLine && more > 0 {
 		b.WriteString(dim.Render(fmt.Sprintf("  … %d more running", more)) + "\n")
 	}
 	if len(m.running) > 0 {
@@ -148,12 +145,23 @@ func (m *liveModel) View() tea.View {
 
 // frameHeight is the tallest the live view can get: header, running, done and progress sections
 func (m *liveModel) frameHeight() int {
-	running := min(concurrency(), m.total)
-	if running > runningMax {
-		running = runningMax + 1
+	running, moreLine := m.runningSlots()
+	if moreLine {
+		running++
 	}
 	done := min(recentDone+1, m.total)
 	return 2 + running + 1 + done + 1 + 2
+}
+
+// runningSlots is how many running repos the frame lists and whether a line is
+// reserved for the rest. It is a hard cap: stage and done messages can briefly
+// overlap, and the frame must never outgrow frameHeight
+func (m *liveModel) runningSlots() (slots int, moreLine bool) {
+	n := min(concurrency(), m.total)
+	if n > runningMax {
+		return runningMax, true
+	}
+	return n, false
 }
 
 func (m *liveModel) livePath(path string) string {
@@ -239,6 +247,16 @@ func runLive(repos []repoItem, baseDir string) {
 	if model.interrupted {
 		os.Exit(130)
 	}
+
+	// The renderer loses its cursor position when a frame shrinks, so it can't
+	// erase the live region itself; tea.Println leaves blank lines when the
+	// results outgrow the terminal
+	lines := model.frameHeight()
+	if _, h, err := term.GetSize(os.Stdout.Fd()); err == nil {
+		lines = min(lines, h)
+	}
+	fmt.Print(ansi.CursorUp(lines-1) + "\r" + ansi.EraseScreenBelow)
+	fmt.Print(renderResults(model.done, baseDir, model.elapsed))
 }
 
 // programOptions works around JetBrains' terminal ignoring CSI Z (cursor
