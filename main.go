@@ -23,6 +23,7 @@ const (
 	fAll      = "all"
 	fPlain    = "plain"
 	fWorkers  = "workers"
+	fCompact  = "compact"
 )
 
 const (
@@ -63,6 +64,7 @@ func init() {
 	cmd.Flags().BoolP(fAll, "a", false, "Show all Repos")
 	cmd.Flags().Bool(fPlain, false, "Plain Output")
 	cmd.Flags().IntP(fWorkers, "w", pullWorkers, "Concurrent Pulls")
+	cmd.Flags().BoolP(fCompact, "c", false, "Progress Only")
 
 	cobra.OnInitialize(func() {
 
@@ -79,6 +81,7 @@ func init() {
 		_ = viper.BindPFlag(fAll, cmd.Flags().Lookup(fAll))
 		_ = viper.BindPFlag(fPlain, cmd.Flags().Lookup(fPlain))
 		_ = viper.BindPFlag(fWorkers, cmd.Flags().Lookup(fWorkers))
+		_ = viper.BindPFlag(fCompact, cmd.Flags().Lookup(fCompact))
 	})
 }
 
