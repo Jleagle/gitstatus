@@ -228,7 +228,7 @@ func (m *liveModel) countsLine() string {
 	}
 
 	var parts []string
-	for c := catError; c < catClean; c++ {
+	for c := range catClean {
 		if n := counts[c]; n > 0 {
 			parts = append(parts, categories[c].style.Render(fmt.Sprintf("%d %s", n, categories[c].summary)))
 		}

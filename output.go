@@ -98,7 +98,7 @@ func summaryLine(rows []rowItem, elapsed time.Duration) string {
 		green.Render("✓") + " " + bright.Render(fmt.Sprintf("%d repos", len(rows))) +
 			dim.Render(fmt.Sprintf(" in %.1fs", elapsed.Seconds())),
 	}
-	for c := catError; c < catClean; c++ {
+	for c := range catClean {
 		if n := counts[c]; n > 0 {
 			parts = append(parts, categories[c].style.Render(fmt.Sprintf("%d %s", n, categories[c].summary)))
 		}
