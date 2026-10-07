@@ -24,7 +24,23 @@ const (
 	fPlain    = "plain"
 )
 
-const workers = 10
+const (
+	workers     = 10
+	pullWorkers = 64 // Pulls spend most of their time waiting on the remote
+)
+
+var (
+	statusSem = make(chan struct{}, workers)
+	pullSem   = make(chan struct{}, pullWorkers)
+)
+
+// concurrency is how many repos can be in flight at once
+func concurrency() int {
+	if viper.GetBool(fPull) {
+		return pullWorkers
+	}
+	return workers
+}
 
 // These variables are set by goreleaser's ldflags
 var (
@@ -227,16 +243,12 @@ func pullRepos(repos []repoItem, rep reporter) (rows []rowItem) {
 	})
 
 	wg := sync.WaitGroup{}
-	sem := make(chan struct{}, workers)
 
 	var mu sync.Mutex
 
 	for _, r := range repos {
 
 		wg.Go(func() {
-			sem <- struct{}{}
-			defer func() { <-sem }()
-
 			row := processRepo(r.path, rep)
 
 			mu.Lock()
@@ -255,7 +267,34 @@ func pullRepos(repos []repoItem, rep reporter) (rows []rowItem) {
 // processRepo builds the result row for a single repo, pulling if requested
 func processRepo(path string, rep reporter) rowItem {
 
-	row := rowItem{path: path}
+	row := readRepo(path, rep)
+	if row.error != nil {
+		return row
+	}
+
+	// Pull; gitPull skips repos it cannot fast-forward without conflicts
+	if viper.GetBool(fPull) {
+		pullSem <- struct{}{}
+		defer func() { <-pullSem }()
+
+		rep.stage(path, "pulling…")
+		var err error
+		row.updated, row.skipped, err = gitPull(row)
+		if err != nil {
+			row.error = err
+		}
+	}
+
+	return row
+}
+
+// readRepo gets the working tree changes and branch of a repo
+func readRepo(path string, rep reporter) (row rowItem) {
+
+	statusSem <- struct{}{}
+	defer func() { <-statusSem }()
+
+	row.path = path
 
 	rep.stage(path, "reading status…")
 
@@ -270,17 +309,6 @@ func processRepo(path string, rep reporter) rowItem {
 	row.branch, row.detached, err = gitBranch(path)
 	if err != nil {
 		row.error = err
-		return row
-	}
-
-	// Pull; gitPull skips repos it cannot fast-forward without conflicts
-	if viper.GetBool(fPull) {
-		rep.stage(path, "pulling…")
-		row.updated, row.skipped, err = gitPull(row)
-		if err != nil {
-			row.error = err
-			return row
-		}
 	}
 
 	return row
