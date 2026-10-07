@@ -20,7 +20,7 @@ func sortRows(rows []rowItem) {
 
 // renderResults lists the repos worth reporting, grouped by category unless
 // --flat, then a summary line
-func renderResults(rows []rowItem, baseDir string, elapsed time.Duration) string {
+func renderResults(rows []rowItem, elapsed time.Duration) string {
 
 	sortRows(rows)
 
@@ -29,7 +29,7 @@ func renderResults(rows []rowItem, baseDir string, elapsed time.Duration) string
 	for _, r := range rows {
 		if r.show() {
 			shown = append(shown, r)
-			pathW = max(pathW, lipgloss.Width(r.displayPath(baseDir)))
+			pathW = max(pathW, lipgloss.Width(r.displayPath()))
 			branchW = max(branchW, lipgloss.Width(r.displayBranch()))
 		}
 	}
@@ -43,7 +43,7 @@ func renderResults(rows []rowItem, baseDir string, elapsed time.Duration) string
 				branch = purple.Render(r.displayBranch())
 			}
 			line := info.style.Render(info.glyph) + " " +
-				pad(bright.Render(r.displayPath(baseDir)), pathW+2) +
+				pad(bright.Render(r.displayPath()), pathW+2) +
 				pad(branch, branchW+2) +
 				formatChanges(r, true)
 			b.WriteString(strings.TrimRight(line, " ") + "\n")
@@ -108,7 +108,7 @@ func summaryLine(rows []rowItem, elapsed time.Duration) string {
 
 // printPlain writes one uncoloured line per reported repo, status first, for
 // piping into grep, sort or a file
-func printPlain(w io.Writer, rows []rowItem, baseDir string) {
+func printPlain(w io.Writer, rows []rowItem) {
 
 	sortRows(rows)
 
@@ -126,7 +126,7 @@ func printPlain(w io.Writer, rows []rowItem, baseDir string) {
 		if reason == "" {
 			reason = r.skipped
 		}
-		line := strings.Join([]string{label, r.displayPath(baseDir), r.displayBranch(), formatChanges(r, false), reason}, "\t")
+		line := strings.Join([]string{label, r.displayPath(), r.displayBranch(), formatChanges(r, false), reason}, "\t")
 		_, _ = fmt.Fprintln(tw, line)
 	}
 	_ = tw.Flush()

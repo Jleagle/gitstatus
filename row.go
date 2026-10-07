@@ -35,12 +35,9 @@ func (r rowItem) isDirty() bool {
 	return r.added+r.modified+r.deleted > 0
 }
 
-// displayPath is the repo path as printed, relative to baseDir with --short
-func (r rowItem) displayPath(baseDir string) string {
-	if viper.GetBool(fShort) {
-		return strings.TrimPrefix(strings.TrimPrefix(r.path, baseDir), "/")
-	}
-	return r.path
+// displayPath is the repo path as printed, see displayDir
+func (r rowItem) displayPath() string {
+	return displayDir(r.path)
 }
 
 func (r rowItem) displayBranch() string {

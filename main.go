@@ -19,7 +19,7 @@ const (
 	fFlat     = "flat"
 	fVersion  = "version"
 	fMaxdepth = "maxdepth"
-	fShort    = "short"
+	fExpand   = "expand"
 	fPull     = "pull"
 	fAll      = "all"
 	fPlain    = "plain"
@@ -61,7 +61,7 @@ func init() {
 	cmd.Flags().Bool(fFlat, false, "Ungrouped Output")
 	cmd.Flags().BoolP(fVersion, "v", false, "Version")
 	cmd.Flags().IntP(fMaxdepth, "m", 2, "Max Depth")
-	cmd.Flags().BoolP(fShort, "s", false, "Short Paths")
+	cmd.Flags().BoolP(fExpand, "e", false, "Full Paths")
 	cmd.Flags().BoolP(fPull, "p", false, "Pull Repos")
 	cmd.Flags().BoolP(fAll, "a", false, "Show all Repos")
 	cmd.Flags().Bool(fPlain, false, "Plain Output")
@@ -79,7 +79,7 @@ func init() {
 		_ = viper.BindPFlag(fFlat, cmd.Flags().Lookup(fFlat))
 		_ = viper.BindPFlag(fVersion, cmd.Flags().Lookup(fVersion))
 		_ = viper.BindPFlag(fMaxdepth, cmd.Flags().Lookup(fMaxdepth))
-		_ = viper.BindPFlag(fShort, cmd.Flags().Lookup(fShort))
+		_ = viper.BindPFlag(fExpand, cmd.Flags().Lookup(fExpand))
 		_ = viper.BindPFlag(fPull, cmd.Flags().Lookup(fPull))
 		_ = viper.BindPFlag(fAll, cmd.Flags().Lookup(fAll))
 		_ = viper.BindPFlag(fPlain, cmd.Flags().Lookup(fPlain))
@@ -133,7 +133,7 @@ var cmd = &cobra.Command{
 		}
 
 		if viper.GetBool(fPlain) || !term.IsTerminal(os.Stdout.Fd()) {
-			printPlain(os.Stdout, pullRepos(repos, noopReporter{}), baseDir)
+			printPlain(os.Stdout, pullRepos(repos, noopReporter{}))
 			return
 		}
 

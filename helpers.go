@@ -1,10 +1,13 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
 	"charm.land/lipgloss/v2"
+	"github.com/spf13/viper"
 )
 
 var (
@@ -18,6 +21,25 @@ var (
 	track  = lipgloss.NewStyle().Foreground(lipgloss.Color("#2A2E37"))
 	badge  = lipgloss.NewStyle().Background(lipgloss.Color("#7AA2F7")).Foreground(lipgloss.Color("#0E1014")).Bold(true).Padding(0, 1)
 )
+
+// displayDir is a directory as printed: the home directory collapsed to ~
+// unless --expand asks for the full path
+func displayDir(path string) string {
+	if viper.GetBool(fExpand) {
+		return path
+	}
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		return path
+	}
+	if path == home {
+		return "~"
+	}
+	if strings.HasPrefix(path, home+string(filepath.Separator)) {
+		return "~" + strings.TrimPrefix(path, home)
+	}
+	return path
+}
 
 // truncate shortens s to at most n runes, marking the cut with an ellipsis
 func truncate(s string, n int) string {

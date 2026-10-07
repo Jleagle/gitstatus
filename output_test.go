@@ -85,24 +85,51 @@ func TestErrorText(t *testing.T) {
 
 func TestPrintPlain(t *testing.T) {
 
-	t.Cleanup(func() { viper.Reset() })
-	viper.Set(fShort, true)
+	t.Setenv("HOME", "/home/me")
 
 	rows := []rowItem{
-		{path: "/code/b/clean", branch: "main"},
-		{path: "/code/a/dirty", branch: "main", added: 1, modified: 3},
-		{path: "/code/c/broken", branch: "main", error: errors.New("Remote branch does not exist")},
-		{path: "/code/d/head", branch: "4d4e145", detached: true},
+		{path: "/home/me/code/b/clean", branch: "main"},
+		{path: "/home/me/code/a/dirty", branch: "main", added: 1, modified: 3},
+		{path: "/home/me/code/c/broken", branch: "main", error: errors.New("Remote branch does not exist")},
+		{path: "/home/me/code/d/head", branch: "4d4e145", detached: true},
 	}
 
 	var b strings.Builder
-	printPlain(&b, rows, "/code")
+	printPlain(&b, rows)
 
 	want := "" +
-		"dirty     a/dirty   main                +1 ~3\n" +
-		"error     c/broken  main                       Remote branch does not exist\n" +
-		"detached  d/head    detached @ 4d4e145\n"
+		"dirty     ~/code/a/dirty   main                +1 ~3\n" +
+		"error     ~/code/c/broken  main                       Remote branch does not exist\n" +
+		"detached  ~/code/d/head    detached @ 4d4e145\n"
 	if b.String() != want {
 		t.Errorf("printPlain() =\n%s\nwant\n%s", b.String(), want)
+	}
+}
+
+func TestDisplayPath(t *testing.T) {
+
+	t.Setenv("HOME", "/home/me")
+
+	tests := []struct {
+		name   string
+		path   string
+		expand bool
+		want   string
+	}{
+		{"home collapsed to tilde", "/home/me/code/repo", false, "~/code/repo"},
+		{"home itself", "/home/me", false, "~"},
+		{"outside home untouched", "/srv/code/repo", false, "/srv/code/repo"},
+		{"sibling of home untouched", "/home/me2/repo", false, "/home/me2/repo"},
+		{"expand keeps full path", "/home/me/code/repo", true, "/home/me/code/repo"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Cleanup(func() { viper.Reset() })
+			viper.Set(fExpand, tt.expand)
+			if got := (rowItem{path: tt.path}).displayPath(); got != tt.want {
+				t.Errorf("displayPath(%q) = %q, want %q", tt.path, got, tt.want)
+			}
+		})
 	}
 }

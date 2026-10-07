@@ -48,7 +48,7 @@ func newLiveModel(repos []repoItem, baseDir string) *liveModel {
 
 	pathW := 0
 	for _, r := range repos {
-		pathW = max(pathW, len([]rune(rowItem{path: r.path}.displayPath(baseDir))))
+		pathW = max(pathW, len([]rune(rowItem{path: r.path}.displayPath())))
 	}
 
 	return &liveModel{
@@ -104,7 +104,7 @@ func (m *liveModel) View() tea.View {
 	if viper.GetBool(fPull) {
 		pull = green.Render("on")
 	}
-	header := badge.Render("gitstatus") + " " + dim.Render("scanning ") + bright.Render(tildeHome(m.baseDir)) +
+	header := badge.Render("gitstatus") + " " + dim.Render("scanning ") + bright.Render(displayDir(m.baseDir)) +
 		dim.Render(fmt.Sprintf(" · %d repos · %d workers · pull ", m.total, concurrency())) + pull + "\n\n"
 
 	var b strings.Builder
@@ -176,7 +176,7 @@ func (m *liveModel) runningSlots() (slots int, moreLine bool) {
 }
 
 func (m *liveModel) livePath(path string) string {
-	return truncate(rowItem{path: path}.displayPath(m.baseDir), m.pathW)
+	return truncate(rowItem{path: path}.displayPath(), m.pathW)
 }
 
 func (m *liveModel) doneLine(r rowItem) string {
@@ -267,7 +267,7 @@ func runLive(repos []repoItem, baseDir string) {
 		lines = min(lines, h)
 	}
 	fmt.Print(ansi.CursorUp(lines-1) + "\r" + ansi.EraseScreenBelow)
-	fmt.Print(renderResults(model.done, baseDir, model.elapsed))
+	fmt.Print(renderResults(model.done, model.elapsed))
 }
 
 // programOptions works around JetBrains' terminal ignoring CSI Z (cursor
@@ -281,11 +281,4 @@ func programOptions() []tea.ProgramOption {
 		tea.WithColorProfile(colorprofile.Detect(os.Stdout, os.Environ())),
 		tea.WithEnvironment(append(os.Environ(), "TERM=linux")),
 	}
-}
-
-func tildeHome(path string) string {
-	if home, err := os.UserHomeDir(); err == nil && strings.HasPrefix(path, home) {
-		return "~" + strings.TrimPrefix(path, home)
-	}
-	return path
 }
