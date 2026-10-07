@@ -19,7 +19,7 @@ func sortRows(rows []rowItem) {
 }
 
 // renderResults lists the repos worth reporting, grouped by category unless
-// --flat, then a summary line
+// --flat, then a summary line with --summary
 func renderResults(rows []rowItem, elapsed time.Duration) string {
 
 	sortRows(rows)
@@ -75,7 +75,9 @@ func renderResults(rows []rowItem, elapsed time.Duration) string {
 		}
 	}
 
-	b.WriteString(summaryLine(rows, elapsed) + "\n")
+	if viper.GetBool(fSummary) {
+		b.WriteString(summaryLine(rows, elapsed) + "\n")
+	}
 	if hidden := len(rows) - len(shown); hidden > 0 {
 		noun := "repos"
 		if hidden == 1 {

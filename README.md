@@ -16,6 +16,7 @@
   -m, --maxdepth int    Max Depth (default 2)
       --plain           Plain Output
   -p, --pull            Pull Repos
+  -s, --summary         Summary Line
   -w, --workers int     Concurrent Pulls (default 64)
 ```
 
@@ -47,6 +48,9 @@ export GITSTATUS_ALL=false
 
 # One long list instead of grouping repos by status
 export GITSTATUS_FLAT=false
+
+# Print a summary line with totals and timing after the results
+export GITSTATUS_SUMMARY=false
 
 # Print full paths instead of shortening your home directory to ~
 export GITSTATUS_EXPAND=false

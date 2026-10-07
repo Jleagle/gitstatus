@@ -4,6 +4,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/spf13/viper"
 )
@@ -129,6 +130,33 @@ func TestDisplayPath(t *testing.T) {
 			viper.Set(fExpand, tt.expand)
 			if got := (rowItem{path: tt.path}).displayPath(); got != tt.want {
 				t.Errorf("displayPath(%q) = %q, want %q", tt.path, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestRenderResultsSummaryLine(t *testing.T) {
+
+	rows := []rowItem{
+		{path: "/code/a", branch: "main", added: 1},
+		{path: "/code/b", branch: "feat"},
+	}
+
+	tests := []struct {
+		name    string
+		summary bool
+	}{
+		{"default omits the summary line", false},
+		{"summary flag prints the summary line", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Cleanup(func() { viper.Reset() })
+			viper.Set(fSummary, tt.summary)
+			out := renderResults(rows, time.Second)
+			if got := strings.Contains(out, " in 1.0s"); got != tt.summary {
+				t.Errorf("renderResults() summary line present = %v, want %v:\n%s", got, tt.summary, out)
 			}
 		})
 	}
