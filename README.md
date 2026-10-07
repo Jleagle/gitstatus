@@ -15,6 +15,7 @@ Flags:                                        ENV:
   -d, --dir string      Directory             GITSTATUS_DIR
   -f, --filter string   Filter                GITSTATUS_FILTER
   -m, --maxdepth int    Max Depth (default 2) GITSTATUS_MAXDEPTH
+      --plain           Plain Output          GITSTATUS_PLAIN
   -p, --pull            Pull Repos            GITSTATUS_PULL
   -s, --short           Short Paths           GITSTATUS_SHORT
 ```
