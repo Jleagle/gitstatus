@@ -12,6 +12,7 @@ Usage:
 
 Flags:                                        ENV:
   -a, --all             Show all Repos        GITSTATUS_ALL
+  -c, --compact         Progress Only         GITSTATUS_COMPACT
   -d, --dir string      Directory             GITSTATUS_DIR
   -f, --filter string   Filter                GITSTATUS_FILTER
   -m, --maxdepth int    Max Depth (default 2) GITSTATUS_MAXDEPTH

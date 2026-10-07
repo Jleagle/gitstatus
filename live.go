@@ -109,6 +109,25 @@ func (m *liveModel) View() tea.View {
 
 	var b strings.Builder
 
+	if !viper.GetBool(fCompact) {
+		m.writeRepos(&b)
+	}
+
+	b.WriteString(m.progressLine() + "\n")
+	b.WriteString(m.countsLine())
+
+	// A constant frame height avoids bubbletea's inline renderer leaving stale
+	// lines behind when the frame resizes
+	frame := header + b.String()
+	if gap := m.frameHeight() - strings.Count(frame, "\n") - 1; gap > 0 {
+		frame = header + strings.Repeat("\n", gap) + b.String()
+	}
+	return tea.NewView(frame)
+}
+
+// writeRepos lists the running and recently finished repos
+func (m *liveModel) writeRepos(b *strings.Builder) {
+
 	slots, moreLine := m.runningSlots()
 	for _, p := range m.running[:min(len(m.running), slots)] {
 		b.WriteString(m.spinner.View() + " " + pad(bright.Render(m.livePath(p)), m.pathW+2) + blue.Render(m.stages[p]) + "\n")
@@ -130,21 +149,13 @@ func (m *liveModel) View() tea.View {
 	if len(m.done) > 0 {
 		b.WriteString("\n")
 	}
-
-	b.WriteString(m.progressLine() + "\n")
-	b.WriteString(m.countsLine())
-
-	// A constant frame height avoids bubbletea's inline renderer leaving stale
-	// lines behind when the frame resizes
-	frame := header + b.String()
-	if gap := m.frameHeight() - strings.Count(frame, "\n") - 1; gap > 0 {
-		frame = header + strings.Repeat("\n", gap) + b.String()
-	}
-	return tea.NewView(frame)
 }
 
 // frameHeight is the tallest the live view can get: header, running, done and progress sections
 func (m *liveModel) frameHeight() int {
+	if viper.GetBool(fCompact) {
+		return 2 + 2
+	}
 	running, moreLine := m.runningSlots()
 	if moreLine {
 		running++
