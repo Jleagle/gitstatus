@@ -8,6 +8,7 @@ import (
 
 	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/colorprofile"
 	"github.com/spf13/viper"
 )
 
@@ -224,7 +225,7 @@ func (m *liveModel) countsLine() string {
 func runLive(repos []repoItem, baseDir string) {
 
 	model := newLiveModel(repos, baseDir)
-	p := tea.NewProgram(model)
+	p := tea.NewProgram(model, programOptions()...)
 
 	go func() {
 		pullRepos(repos, teaReporter{p})
@@ -237,6 +238,19 @@ func runLive(repos []repoItem, baseDir string) {
 	}
 	if model.interrupted {
 		os.Exit(130)
+	}
+}
+
+// programOptions works around JetBrains' terminal ignoring CSI Z (cursor
+// backward tab), which leaves stale text behind; the renderer doesn't use it
+// for TERM=linux, so colors are detected from the real TERM instead
+func programOptions() []tea.ProgramOption {
+	if os.Getenv("TERMINAL_EMULATOR") != "JetBrains-JediTerm" {
+		return nil
+	}
+	return []tea.ProgramOption{
+		tea.WithColorProfile(colorprofile.Detect(os.Stdout, os.Environ())),
+		tea.WithEnvironment(append(os.Environ(), "TERM=linux")),
 	}
 }
 
