@@ -22,6 +22,7 @@ const (
 	fPull     = "pull"
 	fAll      = "all"
 	fPlain    = "plain"
+	fWorkers  = "workers"
 )
 
 const (
@@ -37,7 +38,7 @@ var (
 // concurrency is how many repos can be in flight at once
 func concurrency() int {
 	if viper.GetBool(fPull) {
-		return pullWorkers
+		return max(1, viper.GetInt(fWorkers))
 	}
 	return workers
 }
@@ -61,6 +62,7 @@ func init() {
 	cmd.Flags().BoolP(fPull, "p", false, "Pull Repos")
 	cmd.Flags().BoolP(fAll, "a", false, "Show all Repos")
 	cmd.Flags().Bool(fPlain, false, "Plain Output")
+	cmd.Flags().IntP(fWorkers, "w", pullWorkers, "Concurrent Pulls")
 
 	cobra.OnInitialize(func() {
 
@@ -76,6 +78,7 @@ func init() {
 		_ = viper.BindPFlag(fPull, cmd.Flags().Lookup(fPull))
 		_ = viper.BindPFlag(fAll, cmd.Flags().Lookup(fAll))
 		_ = viper.BindPFlag(fPlain, cmd.Flags().Lookup(fPlain))
+		_ = viper.BindPFlag(fWorkers, cmd.Flags().Lookup(fWorkers))
 	})
 }
 
@@ -241,6 +244,10 @@ func pullRepos(repos []repoItem, rep reporter) (rows []rowItem) {
 	sort.Slice(repos, func(i, j int) bool {
 		return repos[i].size > repos[j].size
 	})
+
+	if viper.GetBool(fPull) {
+		pullSem = make(chan struct{}, concurrency())
+	}
 
 	wg := sync.WaitGroup{}
 
