@@ -16,6 +16,7 @@ import (
 const (
 	fDir      = "dir"
 	fFilter   = "filter"
+	fFlat     = "flat"
 	fVersion  = "version"
 	fMaxdepth = "maxdepth"
 	fShort    = "short"
@@ -56,6 +57,7 @@ func init() {
 
 	cmd.Flags().StringP(fDir, "d", "", "Directory")
 	cmd.Flags().StringP(fFilter, "f", "", "Filter")
+	cmd.Flags().Bool(fFlat, false, "Ungrouped Output")
 	cmd.Flags().BoolP(fVersion, "v", false, "Version")
 	cmd.Flags().IntP(fMaxdepth, "m", 2, "Max Depth")
 	cmd.Flags().BoolP(fShort, "s", false, "Short Paths")
@@ -72,6 +74,7 @@ func init() {
 
 		_ = viper.BindPFlag(fDir, cmd.Flags().Lookup(fDir))
 		_ = viper.BindPFlag(fFilter, cmd.Flags().Lookup(fFilter))
+		_ = viper.BindPFlag(fFlat, cmd.Flags().Lookup(fFlat))
 		_ = viper.BindPFlag(fVersion, cmd.Flags().Lookup(fVersion))
 		_ = viper.BindPFlag(fMaxdepth, cmd.Flags().Lookup(fMaxdepth))
 		_ = viper.BindPFlag(fShort, cmd.Flags().Lookup(fShort))

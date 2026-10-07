@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"charm.land/lipgloss/v2"
+	"github.com/spf13/viper"
 )
 
 func sortRows(rows []rowItem) {
@@ -17,35 +18,26 @@ func sortRows(rows []rowItem) {
 	})
 }
 
-// renderResults lists the repos worth reporting, grouped by category, then a summary line
+// renderResults lists the repos worth reporting, grouped by category unless
+// --flat, then a summary line
 func renderResults(rows []rowItem, baseDir string, elapsed time.Duration) string {
 
 	sortRows(rows)
 
-	groups := map[category][]rowItem{}
-	hidden := 0
+	var shown []rowItem
 	pathW, branchW := 0, 0
 	for _, r := range rows {
-		if !r.show() {
-			hidden++
-			continue
+		if r.show() {
+			shown = append(shown, r)
+			pathW = max(pathW, lipgloss.Width(r.displayPath(baseDir)))
+			branchW = max(branchW, lipgloss.Width(r.displayBranch()))
 		}
-		c := r.category()
-		groups[c] = append(groups[c], r)
-		pathW = max(pathW, lipgloss.Width(r.displayPath(baseDir)))
-		branchW = max(branchW, lipgloss.Width(r.displayBranch()))
 	}
 
 	var b strings.Builder
-	for c := catError; c <= catClean; c++ {
-		group := groups[c]
-		if len(group) == 0 {
-			continue
-		}
-		info := categories[c]
-		b.WriteString(info.style.Bold(true).Render(info.title) + " " + dim.Render(fmt.Sprint(len(group))) + "\n")
-
-		for _, r := range group {
+	writeRows := func(rows []rowItem) {
+		for _, r := range rows {
+			info := categories[r.category()]
 			branch := dim.Render(r.displayBranch())
 			if !r.isMain() {
 				branch = purple.Render(r.displayBranch())
@@ -65,8 +57,26 @@ func renderResults(rows []rowItem, baseDir string, elapsed time.Duration) string
 		b.WriteString("\n")
 	}
 
+	if viper.GetBool(fFlat) {
+		if len(shown) > 0 {
+			writeRows(shown)
+		}
+	} else {
+		groups := map[category][]rowItem{}
+		for _, r := range shown {
+			groups[r.category()] = append(groups[r.category()], r)
+		}
+		for c := catError; c <= catClean; c++ {
+			if group := groups[c]; len(group) > 0 {
+				info := categories[c]
+				b.WriteString(info.style.Bold(true).Render(info.title) + " " + dim.Render(fmt.Sprint(len(group))) + "\n")
+				writeRows(group)
+			}
+		}
+	}
+
 	b.WriteString(summaryLine(rows, elapsed) + "\n")
-	if hidden > 0 {
+	if hidden := len(rows) - len(shown); hidden > 0 {
 		noun := "repos"
 		if hidden == 1 {
 			noun = "repo"
