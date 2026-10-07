@@ -18,4 +18,5 @@ Flags:                                        ENV:
       --plain           Plain Output          GITSTATUS_PLAIN
   -p, --pull            Pull Repos            GITSTATUS_PULL
   -s, --short           Short Paths           GITSTATUS_SHORT
+  -w, --workers int     Concurrent Pulls (default 64) GITSTATUS_WORKERS
 ```
