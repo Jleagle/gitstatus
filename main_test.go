@@ -564,7 +564,7 @@ func TestProcessRepoPullsDirtyRepo(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	row := processRepo(cloneB)
+	row := processRepo(cloneB, noopReporter{})
 	if row.error != nil {
 		t.Fatalf("processRepo: %v", row.error)
 	}
@@ -590,7 +590,7 @@ func TestProcessRepoRecordsSkipReason(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	row := processRepo(cloneB)
+	row := processRepo(cloneB, noopReporter{})
 	if row.error != nil {
 		t.Fatalf("processRepo: %v", row.error)
 	}

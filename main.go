@@ -1,19 +1,14 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
-	"time"
 
-	"github.com/cheggaaa/pb/v3"
-	"github.com/fatih/color"
-	"github.com/jedib0t/go-pretty/v6/table"
-	"github.com/jedib0t/go-pretty/v6/text"
+	"github.com/charmbracelet/x/term"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -26,7 +21,10 @@ const (
 	fShort    = "short"
 	fPull     = "pull"
 	fAll      = "all"
+	fPlain    = "plain"
 )
+
+const workers = 10
 
 // These variables are set by goreleaser's ldflags
 var (
@@ -46,6 +44,7 @@ func init() {
 	cmd.Flags().BoolP(fShort, "s", false, "Short Paths")
 	cmd.Flags().BoolP(fPull, "p", false, "Pull Repos")
 	cmd.Flags().BoolP(fAll, "a", false, "Show all Repos")
+	cmd.Flags().Bool(fPlain, false, "Plain Output")
 
 	cobra.OnInitialize(func() {
 
@@ -60,6 +59,7 @@ func init() {
 		_ = viper.BindPFlag(fShort, cmd.Flags().Lookup(fShort))
 		_ = viper.BindPFlag(fPull, cmd.Flags().Lookup(fPull))
 		_ = viper.BindPFlag(fAll, cmd.Flags().Lookup(fAll))
+		_ = viper.BindPFlag(fPlain, cmd.Flags().Lookup(fPlain))
 	})
 }
 
@@ -107,11 +107,12 @@ var cmd = &cobra.Command{
 			return
 		}
 
-		// Pull repos with a loading bar
-		rows := pullRepos(repos)
+		if viper.GetBool(fPlain) || !term.IsTerminal(os.Stdout.Fd()) {
+			printPlain(os.Stdout, pullRepos(repos, noopReporter{}), baseDir)
+			return
+		}
 
-		// Show a table of results
-		outputTable(rows, baseDir)
+		runLive(repos, baseDir)
 	},
 }
 
@@ -207,22 +208,26 @@ func filterReposByFilterFlag(repos []repoItem) (ret []repoItem) {
 	return ret
 }
 
-func pullRepos(repos []repoItem) (rows []rowItem) {
+// reporter receives per-repo progress from the workers
+type reporter interface {
+	stage(path, stage string)
+	done(row rowItem)
+}
+
+type noopReporter struct{}
+
+func (noopReporter) stage(string, string) {}
+func (noopReporter) done(rowItem)         {}
+
+func pullRepos(repos []repoItem, rep reporter) (rows []rowItem) {
 
 	// Run large repos first so you are not waiting on them at the end
 	sort.Slice(repos, func(i, j int) bool {
 		return repos[i].size > repos[j].size
 	})
 
-	//
-	bar := pb.New(len(repos))
-	bar.SetRefreshRate(time.Millisecond * 200)
-	bar.SetWriter(os.Stdout)
-	bar.SetWidth(100)
-	bar.Start()
-
 	wg := sync.WaitGroup{}
-	sem := make(chan struct{}, 10)
+	sem := make(chan struct{}, workers)
 
 	var mu sync.Mutex
 
@@ -230,29 +235,29 @@ func pullRepos(repos []repoItem) (rows []rowItem) {
 
 		wg.Go(func() {
 			sem <- struct{}{}
-			defer func() {
-				<-sem
-				bar.Increment()
-			}()
+			defer func() { <-sem }()
 
-			row := processRepo(r.path)
+			row := processRepo(r.path, rep)
 
 			mu.Lock()
 			rows = append(rows, row)
 			mu.Unlock()
+
+			rep.done(row)
 		})
 	}
 
 	wg.Wait()
-	bar.Finish()
 
 	return rows
 }
 
 // processRepo builds the result row for a single repo, pulling if requested
-func processRepo(path string) rowItem {
+func processRepo(path string, rep reporter) rowItem {
 
 	row := rowItem{path: path}
+
+	rep.stage(path, "reading status…")
 
 	var err error
 
@@ -270,6 +275,7 @@ func processRepo(path string) rowItem {
 
 	// Pull; gitPull skips repos it cannot fast-forward without conflicts
 	if viper.GetBool(fPull) {
+		rep.stage(path, "pulling…")
 		row.updated, row.skipped, err = gitPull(row)
 		if err != nil {
 			row.error = err
@@ -278,114 +284,4 @@ func processRepo(path string) rowItem {
 	}
 
 	return row
-}
-
-func outputTable(rows []rowItem, baseDir string) {
-
-	sort.Slice(rows, func(i, j int) bool {
-		return strings.ToLower(rows[i].path) < strings.ToLower(rows[j].path)
-	})
-
-	var hasErrors bool
-	for _, v := range rows {
-		if v.error != nil {
-			hasErrors = true
-			break
-		}
-	}
-
-	// Three-char labels over the three-char counts rendered by formatCount below
-	changesHeader := green.Sprint("Add") + " " + orange.Sprint("Mod") + " " + red.Sprint("Del")
-
-	header := table.Row{"REPO", "BRANCH", changesHeader}
-	if viper.GetBool(fPull) {
-		header = append(header, "PULL")
-	}
-	if hasErrors {
-		header = append(header, "ERROR")
-	}
-
-	tab := table.NewWriter()
-	tab.SetOutputMirror(os.Stdout)
-	tab.AppendHeader(header)
-	tab.SetStyle(table.StyleRounded)
-	tab.Style().Format.Header = text.FormatDefault
-
-	hidden := 0
-
-	for _, row := range rows {
-
-		if row.show() {
-
-			// Format path
-			if viper.GetBool(fShort) {
-				row.path = strings.TrimPrefix(row.path, baseDir)
-			}
-
-			// Format branch
-			if row.isDetached() {
-				// Detached hashes are ASCII hex, so slicing bytes is fine, but using runes is safer
-				runes := []rune(row.branch)
-				if len(runes) > 7 {
-					row.branch = fmt.Sprintf("(detached at %s)", string(runes[:7]))
-				} else {
-					row.branch = fmt.Sprintf("(detached at %s)", row.branch)
-				}
-			} else {
-				runes := []rune(row.branch)
-				if len(runes) > 30 {
-					row.branch = string(runes[:30]) + "…"
-				}
-			}
-
-			if !row.isMain() {
-				row.branch = color.RedString(row.branch)
-			}
-
-			var changes string
-			if row.isDirty() {
-				changes = formatCount("+", row.added, green) + " " +
-					formatCount("~", row.modified, orange) + " " +
-					formatCount("-", row.deleted, red)
-			}
-
-			tr := table.Row{row.path, row.branch, changes}
-
-			if viper.GetBool(fPull) {
-
-				var action = ""
-				if row.updated {
-					action = color.GreenString("Updated")
-				} else if row.skipped != "" {
-					action = orange.Sprintf("Skipped (%s)", row.skipped)
-				} else if row.error == nil {
-					action = "Pulled"
-				}
-
-				tr = append(tr, action)
-			}
-
-			if hasErrors {
-				if row.error != nil {
-					tr = append(tr, row.error.Error())
-				} else {
-					tr = append(tr, "")
-				}
-			}
-
-			tab.AppendRow(tr)
-
-			continue
-		}
-
-		hidden++
-	}
-
-	if tab.Length() > 0 {
-		tab.Render()
-	}
-
-	if hidden > 0 {
-		log.Println(color.BlueString(fmt.Sprintf("%d repos with nothing to report, use --all to show them", hidden)))
-	}
 }
