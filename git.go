@@ -4,18 +4,34 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
+	"os"
 	"os/exec"
 	"strings"
+	"syscall"
 	"time"
 )
+
+const gitTimeout = 10 * time.Second
+
+// gitCmd runs git in its own session so a timeout also kills ssh, whose orphan
+// would hold the output pipes open; with no tty ssh fails instead of prompting
+func gitCmd(ctx context.Context, args ...string) *exec.Cmd {
+	cmd := exec.CommandContext(ctx, "git", args...)
+	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	cmd.Cancel = func() error { return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL) }
+	cmd.WaitDelay = time.Second
+	return cmd
+}
 
 // gitDiff counts the new/changed/deleted files in the repo
 func gitDiff(repoPath string) (added, modified, deleted int, err error) {
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), gitTimeout)
 	defer cancel()
 
-	b, err := exec.CommandContext(ctx, "git", "-C", repoPath, "status", "--porcelain").Output()
+	b, err := gitCmd(ctx, "-C", repoPath, "status", "--porcelain").Output()
 	if err != nil {
 		return 0, 0, 0, err
 	}
@@ -50,10 +66,10 @@ func gitDiff(repoPath string) (added, modified, deleted int, err error) {
 // gitBranch gets the branch name and whether it is detached
 func gitBranch(pathx string) (string, bool, error) {
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), gitTimeout)
 	defer cancel()
 
-	b, err := exec.CommandContext(ctx, "git", "-C", pathx, "branch", "--show-current").Output()
+	b, err := gitCmd(ctx, "-C", pathx, "branch", "--show-current").Output()
 	if err != nil {
 		return "", false, err
 	}
@@ -64,7 +80,7 @@ func gitBranch(pathx string) (string, bool, error) {
 	}
 
 	// Fallback for detached HEAD
-	b, _ = exec.CommandContext(ctx, "git", "-C", pathx, "rev-parse", "HEAD").Output()
+	b, _ = gitCmd(ctx, "-C", pathx, "rev-parse", "HEAD").Output()
 	return string(bytes.TrimSpace(b)), true, nil
 }
 
@@ -79,12 +95,16 @@ const (
 // changes, returning whether files were pulled down or why it was skipped
 func gitPull(row rowItem) (updated bool, skipped string, err error) {
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), gitTimeout)
 	defer cancel()
 
 	// pull.rebase=false forces the merge path; with a rebase config git refuses
 	// any pull on a dirty tree, even one that fast-forwards cleanly
-	b, err := exec.CommandContext(ctx, "git", "-C", row.path, "-c", "pull.rebase=false", "pull", "--ff-only").Output()
+	b, err := gitCmd(ctx, "-C", row.path, "-c", "pull.rebase=false", "pull", "--ff-only").Output()
+
+	if ctx.Err() != nil {
+		return false, "", fmt.Errorf("timed out after %s", gitTimeout)
+	}
 
 	var exitError *exec.ExitError
 	if errors.As(err, &exitError) {
@@ -104,6 +124,9 @@ func gitPull(row rowItem) (updated bool, skipped string, err error) {
 			//goland:noinspection GoErrorStringFormat
 			return false, "", errors.New("Remote branch does not exist")
 		}
+		if strings.TrimSpace(stderr) == "" {
+			return false, "", err
+		}
 		return false, "", errors.New(stderr)
 	} else if err != nil {
 		return false, "", err
@@ -119,5 +142,5 @@ func gitPull(row rowItem) (updated bool, skipped string, err error) {
 
 // hasLocalCommits reports whether HEAD points at a commit (false in a clone of an empty repo)
 func hasLocalCommits(ctx context.Context, repoPath string) bool {
-	return exec.CommandContext(ctx, "git", "-C", repoPath, "rev-parse", "--verify", "-q", "HEAD").Run() == nil
+	return gitCmd(ctx, "-C", repoPath, "rev-parse", "--verify", "-q", "HEAD").Run() == nil
 }
