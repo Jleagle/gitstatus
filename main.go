@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -24,26 +25,44 @@ const (
 	fAll      = "all"
 	fPlain    = "plain"
 	fWorkers  = "workers"
+	fReaders  = "readers"
 	fCompact  = "compact"
 	fSummary  = "summary"
 )
 
-const (
-	workers     = 10
-	pullWorkers = 64 // Pulls spend most of their time waiting on the remote
+// Worker pool sizes, both scaled to the machine's CPU cores
+var (
+	statusWorkers = runtime.NumCPU()
+	pullWorkers   = runtime.NumCPU() * 4 // Pulls spend most of their time waiting on the remote
 )
 
 var (
-	statusSem = make(chan struct{}, workers)
+	statusSem = make(chan struct{}, statusWorkers)
 	pullSem   = make(chan struct{}, pullWorkers)
 )
+
+// readers is how many repos can have their status read at once
+func readers() int {
+	if n := viper.GetInt(fReaders); n > 0 {
+		return n
+	}
+	return statusWorkers
+}
+
+// pullers is how many repos can be pulled at once
+func pullers() int {
+	if n := viper.GetInt(fWorkers); n > 0 {
+		return n
+	}
+	return pullWorkers
+}
 
 // concurrency is how many repos can be in flight at once
 func concurrency() int {
 	if viper.GetBool(fPull) {
-		return max(1, viper.GetInt(fWorkers))
+		return pullers()
 	}
-	return workers
+	return readers()
 }
 
 // These variables are set by the Homebrew formula's ldflags, see homebrew/formula.sh
@@ -66,7 +85,8 @@ func init() {
 	cmd.Flags().BoolP(fPull, "p", false, "Pull Repos")
 	cmd.Flags().BoolP(fAll, "a", false, "Show all Repos")
 	cmd.Flags().Bool(fPlain, false, "Plain Output")
-	cmd.Flags().IntP(fWorkers, "w", pullWorkers, "Concurrent Pulls")
+	cmd.Flags().IntP(fWorkers, "w", 0, "Concurrent Pulls (default 4 per CPU core)")
+	cmd.Flags().IntP(fReaders, "r", 0, "Concurrent Status Reads (default 1 per CPU core)")
 	cmd.Flags().BoolP(fCompact, "c", false, "Progress Only")
 	cmd.Flags().BoolP(fSummary, "s", false, "Summary Line")
 
@@ -86,6 +106,7 @@ func init() {
 		_ = viper.BindPFlag(fAll, cmd.Flags().Lookup(fAll))
 		_ = viper.BindPFlag(fPlain, cmd.Flags().Lookup(fPlain))
 		_ = viper.BindPFlag(fWorkers, cmd.Flags().Lookup(fWorkers))
+		_ = viper.BindPFlag(fReaders, cmd.Flags().Lookup(fReaders))
 		_ = viper.BindPFlag(fCompact, cmd.Flags().Lookup(fCompact))
 		_ = viper.BindPFlag(fSummary, cmd.Flags().Lookup(fSummary))
 	})
@@ -254,8 +275,9 @@ func pullRepos(repos []repoItem, rep reporter) (rows []rowItem) {
 		return repos[i].size > repos[j].size
 	})
 
+	statusSem = make(chan struct{}, readers())
 	if viper.GetBool(fPull) {
-		pullSem = make(chan struct{}, concurrency())
+		pullSem = make(chan struct{}, pullers())
 	}
 
 	wg := sync.WaitGroup{}

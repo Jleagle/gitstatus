@@ -5,6 +5,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"testing"
 
 	"github.com/spf13/viper"
@@ -662,5 +663,56 @@ func TestGitBranchDetachedHead(t *testing.T) {
 	// In detached HEAD, .git/HEAD contains a commit hash (40 hex chars), not a branch ref
 	if len(branch) != 40 {
 		t.Errorf("expected 40-char commit hash for detached HEAD, got %q (len=%d)", branch, len(branch))
+	}
+}
+
+func TestConcurrencyDefaultsToCPUCores(t *testing.T) {
+
+	cores := runtime.NumCPU()
+
+	tests := []struct {
+		name    string
+		pull    bool
+		workers int
+		want    int
+	}{
+		{"status reads one per core", false, 0, cores},
+		{"pulls four per core", true, 0, 4 * cores},
+		{"explicit workers win", true, 3, 3},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Cleanup(func() { viper.Reset() })
+			viper.Set(fPull, tt.pull)
+			if tt.workers > 0 {
+				viper.Set(fWorkers, tt.workers)
+			}
+			if got := concurrency(); got != tt.want {
+				t.Errorf("concurrency() = %d, want %d", got, tt.want)
+			}
+		})
+	}
+
+	if got := cap(statusSem); got != cores {
+		t.Errorf("status semaphore holds %d, want %d (one per core)", got, cores)
+	}
+}
+
+func TestReadersFlagSetsStatusConcurrency(t *testing.T) {
+
+	t.Cleanup(func() { viper.Reset() })
+	old := statusSem
+	t.Cleanup(func() { statusSem = old })
+
+	viper.Set(fReaders, 3)
+
+	if got := concurrency(); got != 3 {
+		t.Errorf("concurrency() = %d, want 3", got)
+	}
+
+	pullRepos(nil, noopReporter{})
+
+	if got := cap(statusSem); got != 3 {
+		t.Errorf("status semaphore holds %d, want 3", got)
 	}
 }
