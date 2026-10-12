@@ -677,7 +677,7 @@ func TestConcurrencyDefaultsToCPUCores(t *testing.T) {
 		want    int
 	}{
 		{"status reads one per core", false, 0, cores},
-		{"pulls four per core", true, 0, 4 * cores},
+		{"pulls two per core", true, 0, 2 * cores},
 		{"explicit workers win", true, 3, 3},
 	}
 	for _, tt := range tests {
