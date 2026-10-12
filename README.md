@@ -30,7 +30,7 @@ brew install Jleagle/gitstatus/gitstatus
   -p, --pull            Pull Repos
   -r, --readers int     Concurrent Status Reads (default 1 per CPU core)
   -s, --summary         Summary Line
-  -w, --workers int     Concurrent Pulls (default 4 per CPU core)
+  -w, --workers int     Concurrent Pulls (default 2 per CPU core)
 ```
 
 ### Environment variables
@@ -56,7 +56,7 @@ export GITSTATUS_PULL=false
 # How many repos to read the status of at once, 0 means one per CPU core
 export GITSTATUS_READERS=0
 
-# How many pulls to run at once, 0 means four per CPU core
+# How many pulls to run at once, 0 means two per CPU core
 export GITSTATUS_WORKERS=0
 
 # List clean repos too, not only the ones that need attention

@@ -33,7 +33,7 @@ const (
 // Worker pool sizes, both scaled to the machine's CPU cores
 var (
 	statusWorkers = runtime.NumCPU()
-	pullWorkers   = runtime.NumCPU() * 4 // Pulls spend most of their time waiting on the remote
+	pullWorkers   = runtime.NumCPU() * 2 // Pulls spend most of their time waiting on the remote
 )
 
 var (
@@ -85,7 +85,7 @@ func init() {
 	cmd.Flags().BoolP(fPull, "p", false, "Pull Repos")
 	cmd.Flags().BoolP(fAll, "a", false, "Show all Repos")
 	cmd.Flags().Bool(fPlain, false, "Plain Output")
-	cmd.Flags().IntP(fWorkers, "w", 0, "Concurrent Pulls (default 4 per CPU core)")
+	cmd.Flags().IntP(fWorkers, "w", 0, "Concurrent Pulls (default 2 per CPU core)")
 	cmd.Flags().IntP(fReaders, "r", 0, "Concurrent Status Reads (default 1 per CPU core)")
 	cmd.Flags().BoolP(fCompact, "c", false, "Progress Only")
 	cmd.Flags().BoolP(fSummary, "s", false, "Summary Line")
