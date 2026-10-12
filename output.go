@@ -35,6 +35,7 @@ func renderResults(rows []rowItem, elapsed time.Duration) string {
 	}
 
 	var b strings.Builder
+	flat := viper.GetBool(fFlat)
 	writeRows := func(rows []rowItem) {
 		for _, r := range rows {
 			info := categories[r.category()]
@@ -42,8 +43,11 @@ func renderResults(rows []rowItem, elapsed time.Duration) string {
 			if !r.isMain() {
 				branch = purple.Render(r.displayBranch())
 			}
-			line := info.style.Render(info.glyph) + " " +
-				pad(bright.Render(r.displayPath()), pathW+2) +
+			line := ""
+			if !flat {
+				line = info.style.Render(info.glyph) + " "
+			}
+			line += pad(bright.Render(r.displayPath()), pathW+2) +
 				pad(branch, branchW+2) +
 				formatChanges(r, true)
 			b.WriteString(strings.TrimRight(line, " ") + "\n")
@@ -57,7 +61,7 @@ func renderResults(rows []rowItem, elapsed time.Duration) string {
 		b.WriteString("\n")
 	}
 
-	if viper.GetBool(fFlat) {
+	if flat {
 		if len(shown) > 0 {
 			writeRows(shown)
 		}
