@@ -14,13 +14,15 @@ import (
 
 const gitTimeout = 10 * time.Second
 
-// gitCmd runs git in its own session so a timeout also kills ssh, whose orphan
-// would hold the output pipes open; with no tty ssh fails instead of prompting
+// gitCmd runs git in its own session so a timeout also stops ssh, whose orphan
+// would hold the output pipes open; with no tty ssh fails instead of prompting.
+// The timeout sends SIGTERM so git removes its lock files on the way out; SIGKILL
+// would leave them and break every later git command in the repo
 func gitCmd(ctx context.Context, args ...string) *exec.Cmd {
 	cmd := exec.CommandContext(ctx, "git", args...)
 	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
-	cmd.Cancel = func() error { return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL) }
+	cmd.Cancel = func() error { return syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM) }
 	cmd.WaitDelay = time.Second
 	return cmd
 }
@@ -31,7 +33,7 @@ func gitDiff(repoPath string) (added, modified, deleted int, err error) {
 	ctx, cancel := context.WithTimeout(context.Background(), gitTimeout)
 	defer cancel()
 
-	b, err := gitCmd(ctx, "-C", repoPath, "status", "--porcelain").Output()
+	b, err := gitCmd(ctx, "--no-optional-locks", "-C", repoPath, "status", "--porcelain").Output()
 	if err != nil {
 		return 0, 0, 0, err
 	}
