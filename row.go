@@ -62,6 +62,23 @@ func (r rowItem) errorText() string {
 	return strings.TrimSpace(r.error.Error())
 }
 
+// pullStatus is the outcome shown in the status column: why the pull failed or
+// was skipped, or how it went when it succeeded
+func (r rowItem) pullStatus() (string, lipgloss.Style) {
+	switch {
+	case r.error != nil:
+		return r.errorText(), red
+	case r.skipped != "":
+		return "skipped: " + r.skipped, orange
+	case r.updated:
+		return "pulled", green
+	case viper.GetBool(fPull):
+		return "up to date", dim
+	default:
+		return "", dim
+	}
+}
+
 // category is the single group a repo is listed under, most urgent first
 type category int
 

@@ -25,12 +25,15 @@ func renderResults(rows []rowItem, elapsed time.Duration) string {
 	sortRows(rows)
 
 	var shown []rowItem
-	pathW, branchW := 0, 0
+	pathW, branchW, changesW := 0, 0, 0
+	statusCol := viper.GetBool(fPull)
 	for _, r := range rows {
 		if r.show() {
 			shown = append(shown, r)
 			pathW = max(pathW, lipgloss.Width(r.displayPath()))
 			branchW = max(branchW, lipgloss.Width(r.displayBranch()))
+			changesW = max(changesW, lipgloss.Width(formatChanges(r, false)))
+			statusCol = statusCol || r.error != nil
 		}
 	}
 
@@ -48,15 +51,17 @@ func renderResults(rows []rowItem, elapsed time.Duration) string {
 				line = info.style.Render(info.glyph) + " "
 			}
 			line += pad(bright.Render(r.displayPath()), pathW+2) +
-				pad(branch, branchW+2) +
-				formatChanges(r, true)
-			b.WriteString(strings.TrimRight(line, " ") + "\n")
-
-			if reason := r.errorText(); reason != "" {
-				b.WriteString(dim.Render("  └ ") + red.Render(reason) + "\n")
-			} else if r.skipped != "" {
-				b.WriteString(dim.Render("  └ "+r.skipped) + "\n")
+				pad(branch, branchW+2)
+			if statusCol {
+				if changesW > 0 {
+					line += pad(formatChanges(r, true), changesW+2)
+				}
+				status, style := r.pullStatus()
+				line += style.Render(status)
+			} else {
+				line += formatChanges(r, true)
 			}
+			b.WriteString(strings.TrimRight(line, " ") + "\n")
 		}
 		b.WriteString("\n")
 	}

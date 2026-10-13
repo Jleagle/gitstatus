@@ -161,3 +161,46 @@ func TestRenderResultsSummaryLine(t *testing.T) {
 		})
 	}
 }
+
+func TestRenderResultsStatusColumn(t *testing.T) {
+
+	rows := []rowItem{
+		{path: "/code/failed", branch: "main", error: errors.New("fatal: not possible to fast-forward")},
+		{path: "/code/skipped", branch: "main", added: 1, skipped: "uncommitted changes"},
+		{path: "/code/pulled", branch: "main", updated: true},
+		{path: "/code/current", branch: "feat"},
+	}
+
+	tests := []struct {
+		name string
+		pull bool
+		want []string
+		not  []string
+	}{
+		{"pull shows every outcome", true,
+			[]string{"fatal: not possible to fast-forward", "skipped: uncommitted changes", "pulled", "up to date"}, nil},
+		{"no pull still shows errors", false,
+			[]string{"fatal: not possible to fast-forward"}, []string{"up to date"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Cleanup(func() { viper.Reset() })
+			viper.Set(fPull, tt.pull)
+			out := renderResults(rows, time.Second)
+			for _, w := range tt.want {
+				if !strings.Contains(out, w) {
+					t.Errorf("renderResults() missing %q:\n%s", w, out)
+				}
+			}
+			for _, n := range tt.not {
+				if strings.Contains(out, n) {
+					t.Errorf("renderResults() has unexpected %q:\n%s", n, out)
+				}
+			}
+			if strings.Contains(out, "└") {
+				t.Errorf("renderResults() still writes reason sub-lines:\n%s", out)
+			}
+		})
+	}
+}
