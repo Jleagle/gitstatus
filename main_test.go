@@ -1,12 +1,14 @@
 package main
 
 import (
+	"context"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"reflect"
 	"runtime"
 	"testing"
+	"time"
 
 	"github.com/spf13/viper"
 )
@@ -714,5 +716,30 @@ func TestReadersFlagSetsStatusConcurrency(t *testing.T) {
 
 	if got := cap(statusSem); got != 3 {
 		t.Errorf("status semaphore holds %d, want 3", got)
+	}
+}
+
+// A git command stopped by the timeout must not leave its lock files behind, or every later
+// git command in that repo fails until they are removed by hand. git commit -a holds index.lock
+// while its pre-commit hook runs, so a hook that outlives the timeout stops it mid-lock.
+func TestGitCmdTimeoutReleasesLocks(t *testing.T) {
+
+	dir := initTestRepo(t)
+
+	hook := filepath.Join(dir, ".git", "hooks", "pre-commit")
+	if err := os.WriteFile(hook, []byte("#!/bin/sh\nsleep 30\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	os.WriteFile(filepath.Join(dir, "file.txt"), []byte("changed"), 0o644)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	if err := gitCmd(ctx, "-C", dir, "commit", "-a", "-m", "slow").Run(); err == nil {
+		t.Fatal("expected the commit to be stopped by the timeout")
+	}
+
+	if _, err := os.Stat(filepath.Join(dir, ".git", "index.lock")); err == nil {
+		t.Error("index.lock was left behind after the timeout")
 	}
 }
